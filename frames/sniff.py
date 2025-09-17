@@ -6,4 +6,4 @@ def handle(pkt):
         if b"GF" in payload:
             print("Ghost Frame:", payload)
 
-sniff(iface="en0", prn=handle)
+sniff(iface="wlan1mon", prn=handle)
