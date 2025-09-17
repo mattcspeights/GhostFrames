@@ -1,36 +1,67 @@
 import json
+import random
 import socket
 import time
 import threading
 
-CHAT_PORT = 5000
+BROADCAST_PORT = 65432
+CHAT_PORT = int(random.uniform(20000, 30000))
 NAME = input('What\'s your name? ')
 # ID = f'{NAME}-{int(time.time())}'
 ID = f'{NAME}' # TODO: make unique
 
 peers = {}
 
-def listener():
+def scan_for_peers():
     '''
-    Listens for incoming messages and peer announcements.
+    Listens for peer announcements.
     '''
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("", 65432))
+    sock.bind(("", BROADCAST_PORT))
     while True:
         data, addr = sock.recvfrom(1024)
         msg = json.loads(data.decode())
+        if msg['id'] == ID:
+            continue
         if msg["type"] == "announce":
-            peers[msg["id"]] = {"name": msg["name"], "addr": addr, "last_seen": time.time()}
-        elif msg["type"] == "msg":
-            print(f"{msg['from']} says: {msg['text']}")
+            peers[msg["id"]] = {
+                "name": msg["name"],
+                "addr": addr,
+                "port": msg["port"],
+                "last_seen": time.time(),
+            }
+
+def scan_for_dms():
+    '''
+    Listens for direct messages from peers.
+    '''
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("", CHAT_PORT))
+    while True:
+        data, addr = sock.recvfrom(1024)
+        msg = json.loads(data.decode())
+        if msg["type"] == "msg":
+            # print(f"{msg['from']} says: {msg['text']}")
+            print(f"{peers.get(msg['from'], {'name': 'Unknown'})['name']} -> {NAME}: {msg['text']}")
+        # print(f"DM from {addr}: {data.decode()}")
+        # print(peers)
 
 def announcer():
+    '''
+    Periodically announces presence to other peers over the local network.
+    '''
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    msg = json.dumps({"id": ID, "type": "announce", "name": NAME, "port": CHAT_PORT}).encode()
+    msg = json.dumps({
+        "id": ID,
+        "type": "announce",
+        "name": NAME,
+        "port": CHAT_PORT,
+    }).encode()
     while True:
-        sock.sendto(msg, ("<broadcast>", 65432))
+        sock.sendto(msg, ("<broadcast>", BROADCAST_PORT))
         time.sleep(2)
 
 def send_message(id, text):
@@ -39,14 +70,22 @@ def send_message(id, text):
         return
     peer = peers[id]
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    msg = json.dumps({"type": "msg", "from": NAME, "text": text}).encode()
-    # sock.sendto(msg, peer["addr"])
-    sock.sendto(msg, ("<broadcast>", 65432))
-    print(f'To {peer['name']}: {text}')
+    msg = json.dumps({
+        "type": "msg",
+        "from": ID,
+        "text": text,
+    }).encode()
+    sock.sendto(msg, (peer["addr"][0], peer["port"]))
+    print(f'{NAME} -> {peer["name"]}: {text}')
+    # sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    # msg = json.dumps({"type": "msg", "from": NAME, "text": text}).encode()
+    # # sock.sendto(msg, peer["addr"])
+    # sock.sendto(msg, ("<broadcast>", BROADCAST_PORT))
+    # print(f'To {peer['name']}: {text}')
 
 # start threads
-threading.Thread(target=listener, daemon=True).start()
+threading.Thread(target=scan_for_peers, daemon=True).start()
+threading.Thread(target=scan_for_dms, daemon=True).start()
 threading.Thread(target=announcer, daemon=True).start()
 
 print('''Commands:
