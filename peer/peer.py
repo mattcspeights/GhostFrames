@@ -12,6 +12,12 @@ ID = f'{NAME}' # TODO: make unique
 
 peers = {}
 
+def decode_msg(data):
+    return json.loads(data.decode())
+
+def encode_msg(msg) -> bytes:
+    return json.dumps(msg).encode()
+
 def scan_for_peers():
     '''
     Listens for peer announcements.
@@ -21,7 +27,7 @@ def scan_for_peers():
     sock.bind(('', BROADCAST_PORT))
     while True:
         data, addr = sock.recvfrom(1024)
-        msg = json.loads(data.decode())
+        msg = decode_msg(data)
         if msg['id'] == ID:
             continue
         if msg['type'] == 'announce':
@@ -41,12 +47,9 @@ def scan_for_dms():
     sock.bind(('', CHAT_PORT))
     while True:
         data, addr = sock.recvfrom(1024)
-        msg = json.loads(data.decode())
+        msg = decode_msg(data)
         if msg['type'] == 'msg':
-            # print(f'{msg['from']} says: {msg['text']}')
             print(f'{peers.get(msg['from'], {'name': 'Unknown'})['name']} -> {NAME}: {msg['text']}')
-        # print(f'DM from {addr}: {data.decode()}')
-        # print(peers)
 
 def announcer():
     '''
@@ -54,12 +57,12 @@ def announcer():
     '''
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    msg = json.dumps({
+    msg = encode_msg({
         'id': ID,
         'type': 'announce',
         'name': NAME,
         'port': CHAT_PORT,
-    }).encode()
+    })
     while True:
         sock.sendto(msg, ('<broadcast>', BROADCAST_PORT))
         time.sleep(2)
@@ -70,11 +73,11 @@ def send_message(id, text):
         return
     peer = peers[id]
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    msg = json.dumps({
+    msg = encode_msg({
         'type': 'msg',
         'from': ID,
         'text': text,
-    }).encode()
+    })
     sock.sendto(msg, (peer['addr'][0], peer['port']))
     print(f'{NAME} -> {peer['name']}: {text}')
     # sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
