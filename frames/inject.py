@@ -1,7 +1,12 @@
 from scapy.all import RadioTap, Dot11, sendp
 
-pkt = RadioTap()/Dot11(type=2, subtype=0, addr1="ff:ff:ff:ff:ff:ff", 
-                       addr2="aa:bb:cc:dd:ee:ff", addr3="aa:bb:cc:dd:ee:ff") \
-     / b"GF|MSG|ID=01|SEQ=02|DATA=HELLO"
-
-sendp(pkt, iface="wlan1mon", count=1, inter=0.1)
+def inject(payload: bytes, iface: str, dst: str, src: str):
+    dot11 = Dot11(
+        type=2, subtype=0, # data frame
+        addr1=dst,
+        addr2=src,
+        addr3="02:08:15:19:20:19"
+    )
+    pkt = RadioTap()/dot11/payload
+    sendp(pkt, iface=iface, verbose=False)
+    print(f"[+] Sent frame: {payload}")
