@@ -1,6 +1,6 @@
 from scapy.all import RadioTap, Dot11, sendp
 
-def inject(payload: bytes, iface: str, dst: str, src: str):
+def inject_frames(payload: bytes, iface: str, dst: str, src: str):
     dot11 = Dot11(
         type=2, subtype=0, # data frame
         addr1=dst,

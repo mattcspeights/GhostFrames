@@ -1,6 +1,6 @@
 from scapy.all import sniff, Dot11
 
-def sniff(iface: str, bssid: str, filter_substring: bytes = None):
+def sniff_frames(iface: str, bssid: str, filter_substring: bytes = None):
     def handler(pkt):
         if pkt.haslayer(Dot11):
             dot11 = pkt[Dot11]
