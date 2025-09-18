@@ -1,11 +1,11 @@
-from scapy.all import sniff, Dot11
+from scapy.all import sniff, Dot11, Raw
 
-def sniff_frames(iface: str, bssid: str, filter_substring: bytes = None):
+def sniff_frames(iface: str, filter_substring: bytes = None):
     def handler(pkt):
         if pkt.haslayer(Dot11):
             dot11 = pkt[Dot11]
             # Only match frames with the right pseudo-BSSID
-            if dot11.addr3 == bssid and pkt.haslayer(Raw):
+            if dot11.addr3 == "02:07:08:15:19:20" and pkt.haslayer(Raw):
                 payload = pkt[Raw].load
                 if filter_substring is None or filter_substring in payload:
                     print(f"[+] Received: {payload}")
