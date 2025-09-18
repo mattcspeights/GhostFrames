@@ -6,6 +6,7 @@ def sniff_frames(iface: str, filter_substring: bytes = None):
             dot11 = pkt[Dot11]
             # Only match frames with the right pseudo-BSSID
             if dot11.addr3 == "02:07:08:15:19:20" and pkt.haslayer(Raw):
+                print("[*] Frame matched BSSID filter")
                 payload = pkt[Raw].load
                 if filter_substring is None or filter_substring in payload:
                     print(f"[+] Received: {payload}")

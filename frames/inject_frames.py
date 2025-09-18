@@ -1,12 +1,14 @@
-from scapy.all import RadioTap, Dot11, sendp
+# inject_frames.py
+from scapy.all import RadioTap, Dot11, LLC, SNAP, Raw, sendp
 
-def inject_frames(payload: bytes, iface: str, dst: str, src: str):
+def inject_frames(payload: bytes, iface: str, dst: str, src: str, bssid: str = "02:07:08:15:19:20"):
     dot11 = Dot11(
-        type=2, subtype=0, # data frame
+        type=2, subtype=0,  # data frame
         addr1=dst,
         addr2=src,
-        addr3="02:07:08:15:19:20"
+        addr3=bssid
     )
-    pkt = RadioTap()/dot11/payload
+    # Add LLC + SNAP so upper-layer protocol is clear (makes sniffing easier)
+    pkt = RadioTap()/dot11/LLC()/SNAP()/Raw(payload)
     sendp(pkt, iface=iface, verbose=False)
-    print(f"[+] Sent frame: {payload}")
+    print(f"[+] Sent frame: {payload!r}")
