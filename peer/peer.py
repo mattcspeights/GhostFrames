@@ -61,7 +61,9 @@ class Me:
             data, addr = sock.recvfrom(1024)
             msg = decode_msg(data)
             if msg['type'] == 'msg':
-                print(f'{self.known_peers.get(msg['from'], {'name': 'Unknown'})['name']} -> {self.name}: {msg['text']}')
+                sender_name = self.known_peers.get(msg['from'], {'name': 'Unknown'})['name']
+                content = msg['text']
+                print(f'{sender_name} -> {self.name}: {content}')
 
     def announcer(self):
         '''
@@ -95,7 +97,8 @@ class Me:
             'text': text,
         })
         sock.sendto(msg, (peer['addr'][0], peer['port']))
-        print(f'{self.name} -> {peer['name']}: {text}')
+        peer_name = peer['name']
+        print(f'{self.name} -> {peer_name}: {text}')
 
     def start(self):
         '''
@@ -115,7 +118,9 @@ msg <id> <message> = send message to peer''')
             parts = cmd.split(' ', 2)
             if parts[0] == 'ls':
                 for id, info in self.known_peers.items():
-                    print(f'{info['name']} ({id}) last seen {time.time() - info['last_seen']:.1f}s ago')
+                    name = info['name']
+                    last_seen_secs = time.time() - info['last_seen']
+                    print(f'{name} ({id}) last seen {last_seen_secs}s ago')
             elif parts[0] == 'msg' and len(parts) == 3:
                 self.send_message(parts[1], parts[2])
             else:
