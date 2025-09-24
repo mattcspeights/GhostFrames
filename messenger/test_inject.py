@@ -1,4 +1,4 @@
-from inject_frames import inject_frames
+from send_frame import send_frame
 from enums import MsgType
 
 def main():
