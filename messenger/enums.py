@@ -1,10 +1,10 @@
 from enum import IntEnum
 
 class MsgType(IntEnum):
-    HANDSHAKE_REQ = 1
-    HANDSHAKE_ACK = 2
-    MSG           = 3
-    MSG_ACK       = 4
-    MSG_RETRY     = 5
-    HEARTBEAT     = 6
-    TERMINATE     = 7
+    HANDSHAKE_REQ = 1 # port|name
+    HANDSHAKE_ACK = 2 # port|name
+    MSG           = 3 # data
+    MSG_ACK       = 4 # msg_id|seq
+    MSG_RETRY     = 5 # msg_id|seq
+    HEARTBEAT     = 6 # none
+    TERMINATE     = 7 # none
