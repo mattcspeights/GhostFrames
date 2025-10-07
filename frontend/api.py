@@ -25,6 +25,8 @@ conversations = {
     ],
 }
 
+username = ""
+
 # --- API Endpoints ---
 @app.route("/users", methods=["GET"])
 def get_users():
@@ -32,11 +34,14 @@ def get_users():
 
 @app.route("/messages/<int:user_id>", methods=["GET"])
 def get_messages(user_id):
+    print(username)
+
     return jsonify(conversations.get(user_id, []))
 
 @app.route("/messages/<int:user_id>", methods=["POST"])
 def send_message(user_id):
     data = request.get_json()
+    print(data.get("id",0))
     new_msg = {
         "id": int(data.get("id", 0)) or len(conversations.get(user_id, [])) + 1000,
         "text": data["text"],
@@ -44,6 +49,17 @@ def send_message(user_id):
     }
     conversations.setdefault(user_id, []).append(new_msg)
     return jsonify(new_msg), 201
+
+@app.route("/users/login/<string:user_name>", methods=["POST"])
+def login(user_name):
+    data = request.get_json()
+    global username
+    username = user_name
+    new_msg = {
+        "userName": data["userName"],
+    }
+    return jsonify(new_msg), 201
+
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)

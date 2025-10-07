@@ -18,3 +18,12 @@ export async function sendMessage(userId, text) {
   });
   return res.json();
 }
+
+export async function login(userName) {
+  const res = await fetch(`${API_URL}/users/login/${userName}`,{
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({userName}),
+  });
+  return res.json();
+}

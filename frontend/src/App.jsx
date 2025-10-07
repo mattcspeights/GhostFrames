@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import logo from "./lockheed.png";
-import { getUsers, getMessages, sendMessage as apiSendMessage } from "./api";
+import { getUsers, getMessages, sendMessage as apiSendMessage, login } from "./api";
 
 export default function App() {
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [conversations, setConversations] = useState({});
   const [newMessage, setNewMessage] = useState("");
+  const [userNameInput, setUserNameInput] = useState("");
+  const [userName, setUserName] = useState("");
 
   // Load users on mount
   useEffect(() => {
@@ -29,6 +31,14 @@ export default function App() {
 
   const currentMessages = conversations[selectedUser] || [];
 
+  const handleLogin = async () => {
+    if (userNameInput.trim() === "") return;
+
+    const msg = await login(userNameInput);
+    setUserName(userNameInput);
+    setUserNameInput("");
+  }
+
   const handleSend = async () => {
     if (newMessage.trim() === "") return;
 
@@ -45,10 +55,27 @@ export default function App() {
   return (
     <div className="flex flex-col w-screen h-screen bg-gray-700 absolute top-0 left-0">
       {/* Top Bar */}
-      <div className="w-full h-10 bg-lockheed-blue text-white flex flex-row">
-        <img src={logo} alt="logo" />
-        <div className="p-2">GhostframeSMS</div>
+      <div className="w-full h-12 bg-lockheed-blue text-white flex flex-row items-center justify-between px-4">
+        {/* Left side: logo + title */}
+        <div className="flex flex-row items-center gap-2">
+          <img src={logo} alt="logo" className="h-12 w-12" />
+          <div className="text-lg font-semibold">GhostframeSMS</div>
+        </div>
+
+        {/* Right side: username input */}
+        <div className="flex flex-row items-center gap-2">
+          <label className="p-2">Name: {userName}</label>
+          <input
+            type="text"
+            value={userNameInput}
+            onChange={(e) => setUserNameInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            placeholder="Set name"
+            className="border rounded-lg p-2 focus:outline-none text-white focus:ring-2 focus:ring-blue-500 bg-gray-800"
+          />
+        </div>
       </div>
+
       <div className="flex h-full">
         {/* Sidebar */}
         <div className="w-1/4 bg-white border-r shadow-md">
