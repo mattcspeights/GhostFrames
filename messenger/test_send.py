@@ -1,4 +1,4 @@
-from inject_frames import inject_frames
+from send_frame import send_frame
 from enums import MsgType
 
 def main():
@@ -16,14 +16,15 @@ def main():
             print("[*] Exiting injector.")
             break
 
-        inject_frames(
+        send_frame(
             msg_type=MsgType.MSG,
             msg_id=msg_id,
             seq=seq,
             data=data,
             iface=iface,
             dst=dst,
-            src=src
+            src=src,
+            debug=True
         )
 
         msg_id += 1

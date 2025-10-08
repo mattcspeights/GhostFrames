@@ -1,4 +1,5 @@
 from enums import MsgType
+from scapy.all import get_if_hwaddr
 
 def build_payload(msg_type: MsgType, msg_id: int, seq: int, data: str = "") -> bytes:
     """
@@ -23,3 +24,13 @@ def parse_payload(payload: bytes):
         return msg_type, msg_id, seq, data
     except Exception:
         return None
+
+def get_mac(interface):
+    """
+    Get the MAC address of a network interface using scapy.
+    """
+    try:
+        return get_if_hwaddr(interface)
+    except:
+        print(f"Error: Could not get MAC address for {interface}, using default MAC")
+        return "aa:bb:cc:dd:ee:ff"
