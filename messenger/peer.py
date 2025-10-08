@@ -176,7 +176,7 @@ class Me:
                         if DEBUG_MODE:
                             print(f"[!] Received unparseable frame payload: {payload!r}")
 
-        sniff(iface=IFACE, prn=handler, store=0, DEBUG_MODE)
+        sniff(iface=IFACE, prn=handler, store=0)
 
     def announcer(self):
         '''
