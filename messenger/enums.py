@@ -6,5 +6,5 @@ class MsgType(IntEnum):
     MSG           = 3 # data
     MSG_ACK       = 4 # msg_id|seq
     MSG_RETRY     = 5 # msg_id|seq
-    HEARTBEAT     = 6 # none
-    TERMINATE     = 7 # none
+    HEARTBEAT     = 6 # none (TODO)
+    TERMINATE     = 7 # none (TODO)

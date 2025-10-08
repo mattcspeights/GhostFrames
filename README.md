@@ -4,14 +4,19 @@
 
 **Ghost Frames** is a custom communication system that leverages low-level 802.11 wireless frames to transmit messages outside the standard TCP/IP stack. The project aims to create a secure way to deliver messages and files between users, ultimately through a user-facing desktop application.  
 
+## Instructions
+
+To use this project, run messenger/peer.py.  
+
 
 ## Frame Parameters
+
 All of our frames will be `Dot11(type=2, subtype=0) (data)` frames.
 
 ```py
-addr1="ff:ff:ff:ff:ff:ff"   # dst MAC address. for discovery, this will be all `f`.  
+addr1="ff:ff:ff:ff:ff:ff"   # dst MAC address. for discovery, this will be all `f`. 
 addr2="aa:bb:cc:dd:ee:ff",  # src, this will always be set since we know what our own MAC is.  
-addr3="01:07:08:15:19:20"   # For IBSS, we can choose an arbitrary BSSID (this spells ghost).  
+addr3="01:07:08:15:19:20"   # For IBSS, we can choose an arbitrary BSSID (this spells ghost).   
 ```
 
 To use, call: `inject_frames(msg_type, msg_id, seq, data, iface, dst, src)`
