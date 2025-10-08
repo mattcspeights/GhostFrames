@@ -13,6 +13,7 @@ SRC_MAC = get_mac(IFACE)
 BROADCAST_MAC = "ff:ff:ff:ff:ff:ff" # initialize to default for discovery
 
 NAME = input('What\'s your name? ')
+DEBUG_MODE = input('Enable debug mode to show all frames sent and received (y/n):').startswith('y')
 ID = f'{NAME}' # TODO: make unique
 
 waiting_for_ack = threading.Event()
@@ -88,11 +89,13 @@ class Me:
                         msg_type, msg_id, seq, data = parsed
                         sender_mac = dot11.addr2
                         
-                        print(f"[+] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")
+                        if DEBUG_MODE:
+                            print(f"[+] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")
                         
                         # Skip our own frames
                         if sender_mac == SRC_MAC:
-                            print(f"[*] Ignoring own frame")
+                            if DEBUG_MODE:
+                                print(f"[*] Ignoring own frame")
                             return
                         
                         if msg_type == MsgType.HANDSHAKE_REQ:
@@ -110,7 +113,7 @@ class Me:
                                     # Send handshake acknowledgment
                                     ack_data = f"0|{self.name}"  # port not used, just name
                                     send_frame(MsgType.HANDSHAKE_ACK, get_next_msg_id(), 0, 
-                                             ack_data, IFACE, sender_mac, SRC_MAC)
+                                             ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
 
                         elif msg_type == MsgType.HANDSHAKE_ACK:
                             # Parse handshake ack: "port|name" format
@@ -158,17 +161,22 @@ class Me:
                                     break
                             
                             if sender_id:
+                                # Small delay to make sure sender has updated state
+                                # TODO: This should be a temporary solution but it's the easiest I could think of for now
+                                time.sleep(0.001)
+                                
                                 # Send acknowledgment
                                 ack_data = f"{msg_id}|{seq}"
                                 send_frame(MsgType.MSG_ACK, get_next_msg_id(), 0, 
-                                         ack_data, IFACE, sender_mac, SRC_MAC)
+                                         ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
                                 
                                 sender_name = self.known_peers.get(sender_id, {'name': 'Unknown'})['name']
                                 print(f'{sender_name} -> {self.name}: {data}')
                     else:
-                        print(f"[!] Received unparseable frame payload: {payload!r}")
+                        if DEBUG_MODE:
+                            print(f"[!] Received unparseable frame payload: {payload!r}")
 
-        sniff(iface=IFACE, prn=handler, store=0)
+        sniff(iface=IFACE, prn=handler, store=0, DEBUG_MODE)
 
     def announcer(self):
         '''
@@ -178,7 +186,7 @@ class Me:
             # Send handshake request as announcement: "port|name" format
             announce_data = f"0|{self.name}"  # port not used, just name
             send_frame(MsgType.HANDSHAKE_REQ, get_next_msg_id(), 0, 
-                     announce_data, IFACE, BROADCAST_MAC, SRC_MAC)
+                     announce_data, IFACE, BROADCAST_MAC, SRC_MAC, DEBUG_MODE)
             time.sleep(2)
 
     def send_message(self, id, text):
@@ -197,7 +205,7 @@ class Me:
 
         # Send message frame
         send_frame(MsgType.MSG, get_next_msg_id(), peer['seq'], 
-                 text, IFACE, peer['mac'], SRC_MAC)
+                 text, IFACE, peer['mac'], SRC_MAC, DEBUG_MODE)
         
         self.update_peer(id, {
             'seq': peer['seq'] + 1,

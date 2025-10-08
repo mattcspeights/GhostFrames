@@ -23,7 +23,8 @@ def main():
             data=data,
             iface=iface,
             dst=dst,
-            src=src
+            src=src,
+            debug=True
         )
 
         msg_id += 1

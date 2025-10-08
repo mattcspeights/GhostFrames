@@ -2,7 +2,7 @@ from scapy.all import sniff, Dot11, Raw
 from payload_utils import parse_payload
 from enums import MsgType
 
-def sniff_frames(iface: str, filter_substring: bytes = None):
+def sniff_frames(iface: str, filter_substring: bytes = None, debug: bool = True):
     def handler(pkt):
         if pkt.haslayer(Dot11):
             dot11 = pkt[Dot11]
@@ -13,14 +13,16 @@ def sniff_frames(iface: str, filter_substring: bytes = None):
                 if filter_substring is None or filter_substring in payload:
                     parsed = parse_payload(payload)
                     if parsed:
-                        # TODO: switch from printing data out to console to actually using it
-                        msg_type, msg_id, seq, data = parsed
-                        print(f"[+] Received frame:")
-                        print(f"    Type: {msg_type.name} ({msg_type.value})")
-                        print(f"    ID:   {msg_id}")
-                        print(f"    Seq:  {seq}")
-                        print(f"    Data: {data}")
+                        if debug:
+                            # TODO: switch from printing data out to console to actually using it
+                            msg_type, msg_id, seq, data = parsed
+                            print(f"[+] Received frame:")
+                            print(f"    Type: {msg_type.name} ({msg_type.value})")
+                            print(f"    ID:   {msg_id}")
+                            print(f"    Seq:  {seq}")
+                            print(f"    Data: {data}")
                     else:
-                        print(f"[!] Received unparseable payload: {payload!r}")
+                        if debug:
+                            print(f"[!] Received unparseable payload: {payload!r}")
 
     sniff(iface=iface, prn=handler, store=0)
