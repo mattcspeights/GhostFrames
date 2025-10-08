@@ -2,11 +2,12 @@ import json
 import random
 import time
 import threading
+from datetime import datetime
 from send_frame import send_frame
 from sniff_frames import sniff_frames
 from enums import MsgType
 from payload_utils import parse_payload, get_mac
-from scapy.all import sniff, Dot11, Raw
+from scapy.all import Dot11, Raw
 
 IFACE = "wlan1mon"
 SRC_MAC = get_mac(IFACE)
@@ -74,109 +75,102 @@ class Me:
                     ack['attempt'] += 1
                     ack['latest_by'] = time.time() + (0.05 * (2 ** ack['attempt']))
 
+    def handle_frame(self, pkt, msg_type, msg_id, seq, data):
+        '''
+        Handle received frames based on type.
+        '''
+        dot11 = pkt[Dot11]
+        sender_mac = dot11.addr2
+        
+        if DEBUG_MODE:
+            timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+            print(f"[{timestamp}] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")
+        
+        # Skip our own frames
+        if sender_mac == SRC_MAC:
+            if DEBUG_MODE:
+                print(f"[*] Ignoring own frame")
+            return
+        
+        if msg_type == MsgType.HANDSHAKE_REQ:
+            # Parse handshake request: "port|name" format
+            parts = data.split('|')
+            if len(parts) >= 2:
+                peer_id = parts[1]  # Use name as ID for now
+                if peer_id != ID:  # Don't add ourselves
+                    self.update_peer(peer_id, {
+                        'seq': self.known_peers.get(peer_id, {}).get('seq', 0),
+                        'name': peer_id,
+                        'mac': sender_mac,  # Source MAC
+                        'last_seen': time.time(),
+                    })
+                    # Send handshake acknowledgment
+                    ack_data = f"0|{self.name}"  # port not used, just name
+                    send_frame(MsgType.HANDSHAKE_ACK, get_next_msg_id(), 0, 
+                             ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
+
+        elif msg_type == MsgType.HANDSHAKE_ACK:
+            # Parse handshake ack: "port|name" format
+            parts = data.split('|')
+            if len(parts) >= 2:
+                peer_id = parts[1]
+                if peer_id != ID:
+                    self.update_peer(peer_id, {
+                        'seq': self.known_peers.get(peer_id, {}).get('seq', 0),
+                        'name': peer_id,
+                        'mac': sender_mac,
+                        'last_seen': time.time(),
+                    })
+
+        elif msg_type == MsgType.MSG_ACK:
+            # Parse ACK: "msg_id|seq" format
+            parts = data.split('|')
+            if len(parts) >= 2:
+                ack_msg_id = int(parts[0])
+                ack_seq = int(parts[1])
+                
+                # Find peer by MAC address
+                peer_id = None
+                for pid, pinfo in self.known_peers.items():
+                    if pinfo.get('mac') == sender_mac:
+                        peer_id = pid
+                        break
+                
+                if peer_id and peer_id in self.known_peers:
+                    peer = self.known_peers[peer_id]
+                    if 'expected_ack' in peer and peer['expected_ack']['seq'] == ack_seq:
+                        del peer['expected_ack']
+                        if self.should_stop_timeout_ack():
+                            waiting_for_ack.clear()
+                        print('ACK received from', peer_id, 'for seq', ack_seq)
+                    else:
+                        print('ACK received from', peer_id, 'for unknown seq', ack_seq, '(maybe sent late?)')
+
+        elif msg_type == MsgType.MSG:
+            # Find sender by MAC address
+            sender_id = None
+            for pid, pinfo in self.known_peers.items():
+                if pinfo.get('mac') == sender_mac:
+                    sender_id = pid
+                    break
+            
+            if sender_id:
+                # Small delay to make sure sender has updated state
+                time.sleep(0.001)  # 1ms delay
+                
+                # Send acknowledgment
+                ack_data = f"{msg_id}|{seq}"
+                send_frame(MsgType.MSG_ACK, get_next_msg_id(), 0, 
+                         ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
+                
+                sender_name = self.known_peers.get(sender_id, {'name': 'Unknown'})['name']
+                print(f'{sender_name} -> {self.name}: {data}')
+
     def frame_listener(self):
         '''
         Listens for all frame types and handles them appropriately.
         '''
-        def handler(pkt):
-            if pkt.haslayer(Dot11):
-                dot11 = pkt[Dot11]
-                # Only process our frames with the right pseudo-BSSID
-                if dot11.addr3 == "02:07:08:15:19:20" and pkt.haslayer(Raw):
-                    payload = pkt[Raw].load
-                    parsed = parse_payload(payload)
-                    if parsed:
-                        msg_type, msg_id, seq, data = parsed
-                        sender_mac = dot11.addr2
-                        
-                        if DEBUG_MODE:
-                            print(f"[+] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")
-                        
-                        # Skip our own frames
-                        if sender_mac == SRC_MAC:
-                            if DEBUG_MODE:
-                                print(f"[*] Ignoring own frame")
-                            return
-                        
-                        if msg_type == MsgType.HANDSHAKE_REQ:
-                            # Parse handshake request: "port|name" format
-                            parts = data.split('|')
-                            if len(parts) >= 2:
-                                peer_id = parts[1]  # Use name as ID for now
-                                if peer_id != ID:  # Don't add ourselves
-                                    self.update_peer(peer_id, {
-                                        'seq': self.known_peers.get(peer_id, {}).get('seq', 0),
-                                        'name': peer_id,
-                                        'mac': sender_mac,  # Source MAC
-                                        'last_seen': time.time(),
-                                    })
-                                    # Send handshake acknowledgment
-                                    ack_data = f"0|{self.name}"  # port not used, just name
-                                    send_frame(MsgType.HANDSHAKE_ACK, get_next_msg_id(), 0, 
-                                             ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
-
-                        elif msg_type == MsgType.HANDSHAKE_ACK:
-                            # Parse handshake ack: "port|name" format
-                            parts = data.split('|')
-                            if len(parts) >= 2:
-                                peer_id = parts[1]
-                                if peer_id != ID:
-                                    self.update_peer(peer_id, {
-                                        'seq': self.known_peers.get(peer_id, {}).get('seq', 0),
-                                        'name': peer_id,
-                                        'mac': sender_mac,
-                                        'last_seen': time.time(),
-                                    })
-
-                        elif msg_type == MsgType.MSG_ACK:
-                            # Parse ACK: "msg_id|seq" format
-                            parts = data.split('|')
-                            if len(parts) >= 2:
-                                ack_msg_id = int(parts[0])
-                                ack_seq = int(parts[1])
-                                
-                                # Find peer by MAC address
-                                peer_id = None
-                                for pid, pinfo in self.known_peers.items():
-                                    if pinfo.get('mac') == sender_mac:
-                                        peer_id = pid
-                                        break
-                                
-                                if peer_id and peer_id in self.known_peers:
-                                    peer = self.known_peers[peer_id]
-                                    if 'expected_ack' in peer and peer['expected_ack']['seq'] == ack_seq:
-                                        del peer['expected_ack']
-                                        if self.should_stop_timeout_ack():
-                                            waiting_for_ack.clear()
-                                        print('ACK received from', peer_id, 'for seq', ack_seq)
-                                    else:
-                                        print('ACK received from', peer_id, 'for unknown seq', ack_seq, '(maybe sent late?)')
-
-                        elif msg_type == MsgType.MSG:
-                            # Find sender by MAC address
-                            sender_id = None
-                            for pid, pinfo in self.known_peers.items():
-                                if pinfo.get('mac') == sender_mac:
-                                    sender_id = pid
-                                    break
-                            
-                            if sender_id:
-                                # Small delay to make sure sender has updated state
-                                # TODO: This should be a temporary solution but it's the easiest I could think of for now
-                                time.sleep(0.001)
-                                
-                                # Send acknowledgment
-                                ack_data = f"{msg_id}|{seq}"
-                                send_frame(MsgType.MSG_ACK, get_next_msg_id(), 0, 
-                                         ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
-                                
-                                sender_name = self.known_peers.get(sender_id, {'name': 'Unknown'})['name']
-                                print(f'{sender_name} -> {self.name}: {data}')
-                    else:
-                        if DEBUG_MODE:
-                            print(f"[!] Received unparseable frame payload: {payload!r}")
-
-        sniff(iface=IFACE, prn=handler, store=0)
+        sniff_frames(IFACE, filter_substring=b"GF|", debug=DEBUG_MODE, callback=self.handle_frame)
 
     def announcer(self):
         '''
@@ -228,9 +222,9 @@ class Me:
         self.frame_listener_thread.start()
         self.announcer_thread.start()
 
-        print('''Commands:
-ls                 = list known peers
-msg <id> <message> = send message to peer''')
+        print("Commands:")
+        print("  ls                 = list known peers")
+        print("  msg <id> <message> = send message to peer")
 
         while True:
             print()
