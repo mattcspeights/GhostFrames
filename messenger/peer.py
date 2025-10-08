@@ -88,8 +88,11 @@ class Me:
                         msg_type, msg_id, seq, data = parsed
                         sender_mac = dot11.addr2
                         
+                        print(f"[+] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")
+                        
                         # Skip our own frames
                         if sender_mac == SRC_MAC:
+                            print(f"[*] Ignoring own frame")
                             return
                         
                         if msg_type == MsgType.HANDSHAKE_REQ:
@@ -162,6 +165,8 @@ class Me:
                                 
                                 sender_name = self.known_peers.get(sender_id, {'name': 'Unknown'})['name']
                                 print(f'{sender_name} -> {self.name}: {data}')
+                    else:
+                        print(f"[!] Received unparseable frame payload: {payload!r}")
 
         sniff(iface=IFACE, prn=handler, store=0)
 
