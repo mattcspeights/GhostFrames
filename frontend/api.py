@@ -65,6 +65,13 @@ def login(user_name):
     username = user_name
     return jsonify(username), 201
 
+# --- Logout Endpoint ---
+@app.route("/users/logout", methods=["POST"])
+def logout():
+    """Logs out the current user and clears the username."""
+    global username
+    username = ""
+    return jsonify({"message": "Logged out successfully."}), 200
 
 
 # Dummy storage for shared files
