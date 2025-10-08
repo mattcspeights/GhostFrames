@@ -16,7 +16,7 @@ def main():
             print("[*] Exiting injector.")
             break
 
-        inject_frames(
+        send_frame(
             msg_type=MsgType.MSG,
             msg_id=msg_id,
             seq=seq,
