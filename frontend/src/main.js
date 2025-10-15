@@ -1,49 +1,94 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import path from 'node:path';
-import started from 'electron-squirrel-startup';
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (started) {
-  app.quit();
+import { app, BrowserWindow } from "electron";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import net from "node:net";
+import started from "electron-squirrel-startup";
+
+if (started) app.quit();
+
+let backendProc = null;
+
+async function waitForPort(port, timeoutMs = 8000) {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    (function probe() {
+      const s = net.connect(port, "127.0.0.1", () => {
+        s.end();
+        resolve();
+      });
+      s.on("error", () => {
+        s.destroy();
+        if (Date.now() - start > timeoutMs) reject(new Error("backend timeout"));
+        else setTimeout(probe, 150);
+      });
+    })();
+  });
 }
 
-const createWindow = () => {
-  // Create the browser window.
+async function startBackend() {
+  const isDev = !app.isPackaged;
+  const devPy = path.join(process.cwd(), "backend", "api.py");
+  const prodBin = path.join(
+    process.resourcesPath,
+    process.platform === "win32" ? "backend.exe" : "backend"
+  );
+
+  const cmd = isDev ? "python" : prodBin;
+  const args = isDev ? [devPy, "--print-port"] : ["--print-port"];
+
+  backendProc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+
+  // Read the single line of JSON printed by the backend
+  const port = await new Promise((resolve, reject) => {
+    backendProc.stdout.once("data", (buf) => {
+      try {
+        const data = JSON.parse(buf.toString());
+        resolve(data.port);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+
+  await waitForPort(port);
+  return `http://127.0.0.1:${port}`;
+}
+
+async function createWindow() {
+  const baseURL = await startBackend();
+
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     icon: "lockheed.png",
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
-  // and load the index.html of the app.
+  // When developing, still use Vite dev server URL
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    // For production builds, you can either load your bundled UI
+    // or point directly to the backend (if it's serving HTML)
+    mainWindow.loadFile(
+      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
+    );
   }
 
-};
+  // Example: if your frontend talks to backend REST API, pass the URL
+  mainWindow.webContents.executeJavaScript(
+    `window.BACKEND_URL = '${baseURL}'`
+  );
+}
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(createWindow);
 
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
 });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+app.on("before-quit", () => {
+  if (backendProc) backendProc.kill();
 });
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.
