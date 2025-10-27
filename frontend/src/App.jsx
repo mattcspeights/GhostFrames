@@ -11,7 +11,11 @@ export default function App() {
   const [userName, setUserName] = useState("");
 
   function onMessage(message) {
-    console.log("Received message via WebSocket:", message);
+    const { from, text } = message;
+    setConversations((prev) => ({
+      ...prev,
+      [from]: [...(prev[from] || []), { id: Date.now(), text, sender: "them" }],
+    }));
   }
 
   // Initialize WebSocket on mount
