@@ -68,16 +68,14 @@ def send_message(user_id):
 
 @sock.route('/ws/chat')
 def chat(ws):
-    def handle_event(event):
-        if event["type"] == "message":
-            msg = {
-                "id": event["id"],
-                "text": event["text"],
-                "sender": "other" if event["from"] != username else "me",
-            }
-            ws.send(jsonify(msg).get_data(as_text=True))
+    def handle_message(sender_id, message):
+        msg = {
+            "from": sender_id,
+            "text": message,
+        }
+        ws.send(jsonify(msg).get_data(as_text=True))
 
-    peer.register_message_listener(handle_event)
+    peer.register_message_listener(handle_message)
 
     try:
         while True:
