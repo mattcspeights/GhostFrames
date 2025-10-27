@@ -7,9 +7,3 @@ const container = document.getElementById("root");
 const root = createRoot(container);
 root.render(<App/>);
 
-const func = async () => {
-  const response = await window.versions.ping()
-  console.log(response) // prints out 'pong'
-}
-
-func()
