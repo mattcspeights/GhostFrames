@@ -3,7 +3,7 @@ import logo from "./lockheed.png";
 import { getUsers, getMessages, sendMessage as apiSendMessage, login, ws } from "./api";
 
 export default function App() {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState({});
   const [selectedUser, setSelectedUser] = useState(null);
   const [conversations, setConversations] = useState({});
   const [newMessage, setNewMessage] = useState("");
@@ -108,7 +108,7 @@ export default function App() {
         <div className="flex flex-col flex-1">
           {/* Header */}
           <div className="bg-lockheed-blue text-white p-4 font-semibold">
-            {users.find((u) => u.id === selectedUser)?.name}
+            {selectedUser ? users[selectedUser]?.name : "Select a chat"}
           </div>
 
           {/* Messages */}
