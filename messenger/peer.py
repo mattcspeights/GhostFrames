@@ -8,6 +8,7 @@ from enums import MsgType
 from payload_utils import parse_payload, get_mac
 from scapy.all import sniff, Dot11, Raw
 
+DEBUG_MODE = False
 IFACE = "wlan1mon"
 SRC_MAC = get_mac(IFACE)
 BROADCAST_MAC = "ff:ff:ff:ff:ff:ff" # initialize to default for discovery
