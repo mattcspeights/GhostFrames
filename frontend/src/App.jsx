@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { HashRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { getUsers, getMessages, sendMessage, login } from "./api";
 import ChatWindow from "./ChatWindow";
 import LoginPage from "./LoginPage";
@@ -84,8 +84,8 @@ function AppInner() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AppInner />
-    </BrowserRouter>
+    </HashRouter>
   );
 }
