@@ -24,8 +24,8 @@ class Me:
     '''
     Handles a connection to the local network.
     '''
-    def __init__(self, id: str, name: str, debug_mode: bool = False):
-        self.id = id
+    def __init__(self, name: str, debug_mode: bool = False):
+        self.id = name
         self.name = name
         self.debug_mode = debug_mode
 
