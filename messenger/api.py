@@ -30,8 +30,8 @@ conversations = {
     ],
 }
 
-username = ""
-peer = Me(username)
+username = "Anonymous"
+peer = Me(username, username, False)
 peer.start()
 
 # --- API Endpoints ---
@@ -97,6 +97,9 @@ def login(user_name):
     data = request.get_json()
     global username
     username = user_name
+    peer.id = user_name
+    peer.name = user_name
+
     new_msg = {
         "userName": data["userName"],
     }

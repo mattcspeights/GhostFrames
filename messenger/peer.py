@@ -24,8 +24,10 @@ class Me:
     '''
     Handles a connection to the local network.
     '''
-    def __init__(self, name: str):
+    def __init__(self, id: str, name: str, debug_mode: bool = False):
+        self.id = id
         self.name = name
+        self.debug_mode = debug_mode
 
         self.known_peers = {}
         self.message_listeners = []
@@ -99,12 +101,12 @@ class Me:
                         msg_type, msg_id, seq, data = parsed
                         sender_mac = dot11.addr2
                         
-                        if DEBUG_MODE:
+                        if self.debug_mode:
                             print(f"[+] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")
                         
                         # Skip our own frames
                         if sender_mac == SRC_MAC:
-                            if DEBUG_MODE:
+                            if self.debug_mode:
                                 print(f"[*] Ignoring own frame")
                             return
                         
@@ -113,7 +115,7 @@ class Me:
                             parts = data.split('|')
                             if len(parts) >= 2:
                                 peer_id = parts[1]  # Use name as ID for now
-                                if peer_id != ID:  # Don't add ourselves
+                                if peer_id != id:
                                     self.update_peer(peer_id, {
                                         'seq': self.known_peers.get(peer_id, {}).get('seq', 0),
                                         'name': peer_id,
@@ -123,14 +125,14 @@ class Me:
                                     # Send handshake acknowledgment
                                     ack_data = f"0|{self.name}"  # port not used, just name
                                     send_frame(MsgType.HANDSHAKE_ACK, get_next_msg_id(), 0, 
-                                             ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
+                                             ack_data, IFACE, sender_mac, SRC_MAC, self.debug_mode)
 
                         elif msg_type == MsgType.HANDSHAKE_ACK:
                             # Parse handshake ack: "port|name" format
                             parts = data.split('|')
                             if len(parts) >= 2:
                                 peer_id = parts[1]
-                                if peer_id != ID:
+                                if peer_id != id:
                                     self.update_peer(peer_id, {
                                         'seq': self.known_peers.get(peer_id, {}).get('seq', 0),
                                         'name': peer_id,
@@ -178,7 +180,7 @@ class Me:
                                 # Send acknowledgment
                                 ack_data = f"{msg_id}|{seq}"
                                 send_frame(MsgType.MSG_ACK, get_next_msg_id(), 0, 
-                                         ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
+                                         ack_data, IFACE, sender_mac, SRC_MAC, self.debug_mode)
                                 
                                 sender_name = self.known_peers.get(sender_id, {'name': 'Unknown'})['name']
                                 print(f'{sender_name} -> {self.name}: {data}')
@@ -187,7 +189,7 @@ class Me:
                                 for callback in self.message_listeners:
                                     callback(sender_id, data)
                     else:
-                        if DEBUG_MODE:
+                        if self.debug_mode:
                             print(f"[!] Received unparseable frame payload: {payload!r}")
 
         sniff(iface=IFACE, prn=handler, store=0)
@@ -200,7 +202,7 @@ class Me:
             # Send handshake request as announcement: "port|name" format
             announce_data = f"0|{self.name}"  # port not used, just name
             send_frame(MsgType.HANDSHAKE_REQ, get_next_msg_id(), 0, 
-                     announce_data, IFACE, BROADCAST_MAC, SRC_MAC, DEBUG_MODE)
+                     announce_data, IFACE, BROADCAST_MAC, SRC_MAC, self.debug_mode)
             time.sleep(2)
 
     def send_message(self, id, text):
@@ -219,7 +221,7 @@ class Me:
 
         # Send message frame
         send_frame(MsgType.MSG, get_next_msg_id(), peer['seq'], 
-                 text, IFACE, peer['mac'], SRC_MAC, DEBUG_MODE)
+                 text, IFACE, peer['mac'], SRC_MAC, self.debug_mode)
         
         self.update_peer(id, {
             'seq': peer['seq'] + 1,
@@ -266,10 +268,10 @@ msg <id> <message> = send message to peer''')
                 print('Unknown command')
 
 if __name__ == '__main__':
-    NAME = input('What\'s your name? ')
-    DEBUG_MODE = input('Enable debug mode to show all frames sent and received (y/n):').startswith('y')
-    ID = f'{NAME}' # TODO: make unique
+    name = input('What\'s your name? ')
+    debug_mode = input('Enable debug mode to show all frames sent and received (y/n):').startswith('y')
+    id = f'{name}' # TODO: make unique
 
-    me = Me(NAME)
+    me = Me(id, name, debug_mode)
     me.start()
     me.cmd()
