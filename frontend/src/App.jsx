@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import logo from "./lockheed.png";
-import { getUsers, getMessages, sendMessage as apiSendMessage, login } from "./api";
+import { getUsers, getMessages, sendMessage as apiSendMessage, login, ws } from "./api";
 
 export default function App() {
   const [users, setUsers] = useState([]);
@@ -9,6 +9,19 @@ export default function App() {
   const [newMessage, setNewMessage] = useState("");
   const [userNameInput, setUserNameInput] = useState("");
   const [userName, setUserName] = useState("");
+
+  function onMessage(message) {
+    console.log("Received message via WebSocket:", message);
+  }
+
+  // Initialize WebSocket on mount
+  useEffect(() => {
+    async function initializeWebSocket() {
+      const websocket = await ws();
+      websocket.onMessage(onMessage);
+    }
+    initializeWebSocket();
+  }, []);
 
   // Load users on mount
   useEffect(() => {

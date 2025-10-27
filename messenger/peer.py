@@ -12,10 +12,6 @@ IFACE = "wlan1mon"
 SRC_MAC = get_mac(IFACE)
 BROADCAST_MAC = "ff:ff:ff:ff:ff:ff" # initialize to default for discovery
 
-NAME = input('What\'s your name? ')
-DEBUG_MODE = input('Enable debug mode to show all frames sent and received (y/n):').startswith('y')
-ID = f'{NAME}' # TODO: make unique
-
 waiting_for_ack = threading.Event()
 msg_id_counter = 0
 
@@ -32,6 +28,7 @@ class Me:
         self.name = name
 
         self.known_peers = {}
+        self.message_listeners = []
 
         self.timeout_ack_thread = threading.Thread(target=self.timeout_ack, daemon=True)
         self.frame_listener_thread = threading.Thread(target=self.frame_listener, daemon=True)
@@ -73,6 +70,19 @@ class Me:
                     # update ack info
                     ack['attempt'] += 1
                     ack['latest_by'] = time.time() + (0.05 * (2 ** ack['attempt']))
+
+    def register_message_listener(self, callback):
+        '''
+        Registers a callback to be called when a message from a peer is
+        received.
+        '''
+        self.message_listeners.append(callback)
+
+    def remove_message_listener(self, callback):
+        '''
+        Removes a previously registered message listener.
+        '''
+        self.message_listeners.remove(callback)
 
     def frame_listener(self):
         '''
@@ -172,6 +182,10 @@ class Me:
                                 
                                 sender_name = self.known_peers.get(sender_id, {'name': 'Unknown'})['name']
                                 print(f'{sender_name} -> {self.name}: {data}')
+
+                                # Notify listeners
+                                for callback in self.message_listeners:
+                                    callback(sender_id, data)
                     else:
                         if DEBUG_MODE:
                             print(f"[!] Received unparseable frame payload: {payload!r}")
@@ -222,12 +236,17 @@ class Me:
 
     def start(self):
         '''
-        Starts the connection threads and enters the command loop.
+        Starts the connection threads.
         '''
         self.timeout_ack_thread.start()
         self.frame_listener_thread.start()
         self.announcer_thread.start()
 
+    def cmd(self):
+        '''
+        Enters cmd mode where you can interact with the messenger from the
+        command line.
+        '''
         print('''Commands:
 ls                 = list known peers
 msg <id> <message> = send message to peer''')
@@ -247,5 +266,10 @@ msg <id> <message> = send message to peer''')
                 print('Unknown command')
 
 if __name__ == '__main__':
+    NAME = input('What\'s your name? ')
+    DEBUG_MODE = input('Enable debug mode to show all frames sent and received (y/n):').startswith('y')
+    ID = f'{NAME}' # TODO: make unique
+
     me = Me(NAME)
     me.start()
+    me.cmd()

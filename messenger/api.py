@@ -1,8 +1,13 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_sock import Sock
+from peer import Me
 
 app = Flask(__name__)
 CORS(app)  # allow calls from React (localhost:3000 in dev)
+sock = Sock(app)
+
+avatars = ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "🟤", "⚫"]
 
 # --- Dummy data (moved from React) ---
 users = [
@@ -26,10 +31,21 @@ conversations = {
 }
 
 username = ""
+peer = Me(username)
+peer.start()
 
 # --- API Endpoints ---
 @app.route("/users", methods=["GET"])
 def get_users():
+    print(peer.known_peers)
+    # use these peers with random avatars
+    users = []
+    for i, p in enumerate(peer.known_peers):
+        users.append({
+            "id": i + 1,
+            "name": p,
+            "avatar": avatars[i % len(avatars)],
+        })
     return jsonify(users)
 
 @app.route("/messages/<int:user_id>", methods=["GET"])
@@ -50,8 +66,34 @@ def send_message(user_id):
     conversations.setdefault(user_id, []).append(new_msg)
     return jsonify(new_msg), 201
 
+@sock.route('/ws/chat')
+def chat(ws):
+    def handle_event(event):
+        if event["type"] == "message":
+            msg = {
+                "id": event["id"],
+                "text": event["text"],
+                "sender": "other" if event["from"] != username else "me",
+            }
+            ws.send(jsonify(msg).get_data(as_text=True))
+
+    peer.register_message_listener(handle_event)
+
+    try:
+        while True:
+            data = ws.receive() # Don't care about incoming data
+            if data is None:
+                break
+    except Exception as e:
+        print("WebSocket error:", e)
+    finally:
+        print("WebSocket connection ended")
+
 @app.route("/users/login/<string:user_name>", methods=["POST"])
 def login(user_name):
+    '''
+    Set the global username for the session.
+    '''
     data = request.get_json()
     global username
     username = user_name
