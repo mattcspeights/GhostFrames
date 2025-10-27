@@ -10,41 +10,29 @@ export default function App() {
   const [userNameInput, setUserNameInput] = useState("");
   const [userName, setUserName] = useState("");
 
+  /**
+   * Updates the UI when a new message is received via WebSocket, adding it
+   * to the appropriate conversation.
+   */
   function onMessage(message) {
     const { from, text } = message;
     setConversations((prev) => ({
       ...prev,
-      [from]: [...(prev[from] || []), { id: Date.now(), text, sender: "them" }],
+      [from]: [...(prev[from] || []), { id: from, text, sender: "them" }],
     }));
   }
 
-  // Initialize WebSocket on mount
+  // Initialize WebSocket and fetch users on component mount
   useEffect(() => {
-    async function initializeWebSocket() {
+    async function init() {
       const websocket = await ws();
       websocket.onMessage(onMessage);
-    }
-    initializeWebSocket();
-  }, []);
 
-  // Load users on mount
-  useEffect(() => {
-    getUsers().then((data) => {
+      const data = await getUsers();
       setUsers(data);
-      if (data.length > 0) {
-        setSelectedUser(data[0].id);
-      }
-    });
-  }, []);
-
-  // Load messages when user changes
-  useEffect(() => {
-    if (selectedUser) {
-      getMessages(selectedUser).then((msgs) => {
-        setConversations((prev) => ({ ...prev, [selectedUser]: msgs }));
-      });
     }
-  }, [selectedUser]);
+    init();
+  }, []);
 
   const currentMessages = conversations[selectedUser] || [];
 

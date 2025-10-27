@@ -41,12 +41,12 @@ def get_users():
     print(peer.known_peers)
     # use these peers with random avatars
     users = []
-    for i, p in enumerate(peer.known_peers):
-        users.append({
-            "id": i + 1,
-            "name": p,
+    for i, (id, data) in enumerate(peer.known_peers.items()):
+        users[id] = {
+            "id": id,
+            "name": data['name'],
             "avatar": avatars[i % len(avatars)],
-        })
+        }
     return jsonify(users)
 
 @app.route("/messages/<int:user_id>", methods=["GET"])
