@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sock import Sock
+import json
 from peer import Me
 
 app = Flask(__name__)
@@ -73,7 +74,7 @@ def chat(ws):
             "from": sender_id,
             "text": message,
         }
-        ws.send(jsonify(msg).get_data(as_text=True))
+        ws.send(json.dumps(msg))
 
     peer.register_message_listener(handle_message)
 
