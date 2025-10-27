@@ -3,48 +3,36 @@ import logo from "./lockheed.png";
 import { getUsers, getMessages, sendMessage as apiSendMessage, login, ws } from "./api";
 
 export default function App() {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState({});
   const [selectedUser, setSelectedUser] = useState(null);
   const [conversations, setConversations] = useState({});
   const [newMessage, setNewMessage] = useState("");
   const [userNameInput, setUserNameInput] = useState("");
   const [userName, setUserName] = useState("");
 
+  /**
+   * Updates the UI when a new message is received via WebSocket, adding it
+   * to the appropriate conversation.
+   */
   function onMessage(message) {
     const { from, text } = message;
     setConversations((prev) => ({
       ...prev,
-      [from]: [...(prev[from] || []), { id: Date.now(), text, sender: "them" }],
+      [from]: [...(prev[from] || []), { id: from, text, sender: "them" }],
     }));
   }
 
-  // Initialize WebSocket on mount
+  // Initialize WebSocket and fetch users on component mount
   useEffect(() => {
-    async function initializeWebSocket() {
+    async function init() {
       const websocket = await ws();
       websocket.onMessage(onMessage);
-    }
-    initializeWebSocket();
-  }, []);
 
-  // Load users on mount
-  useEffect(() => {
-    getUsers().then((data) => {
+      const data = await getUsers();
       setUsers(data);
-      if (data.length > 0) {
-        setSelectedUser(data[0].id);
-      }
-    });
-  }, []);
-
-  // Load messages when user changes
-  useEffect(() => {
-    if (selectedUser) {
-      getMessages(selectedUser).then((msgs) => {
-        setConversations((prev) => ({ ...prev, [selectedUser]: msgs }));
-      });
     }
-  }, [selectedUser]);
+    init();
+  }, []);
 
   const currentMessages = conversations[selectedUser] || [];
 
@@ -98,18 +86,21 @@ export default function App() {
         <div className="w-1/4 bg-white border-r shadow-md">
           <div className="p-4 font-bold text-lg border-b">Chats</div>
           <ul>
-            {users.map((user) => (
-              <li
-                key={user.id}
-                onClick={() => setSelectedUser(user.id)}
-                className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-100 ${
-                  selectedUser === user.id ? "bg-gray-200 font-semibold" : ""
-                }`}
-              >
-                <span className="text-xl">{user.avatar}</span>
-                <span>{user.name}</span>
-              </li>
-            ))}
+            {Object.keys(users).map((userId) => {
+              const user = users[userId];
+              return (
+                <li
+                  key={user.id}
+                  onClick={() => setSelectedUser(user.id)}
+                  className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-100 ${
+                    selectedUser === user.id ? "bg-gray-200 font-semibold" : ""
+                  }`}
+                >
+                  <span className="text-xl">{user.avatar}</span>
+                  <span>{user.name}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
@@ -117,7 +108,7 @@ export default function App() {
         <div className="flex flex-col flex-1">
           {/* Header */}
           <div className="bg-lockheed-blue text-white p-4 font-semibold">
-            {users.find((u) => u.id === selectedUser)?.name}
+            {selectedUser ? users[selectedUser]?.name : "Select a chat"}
           </div>
 
           {/* Messages */}
