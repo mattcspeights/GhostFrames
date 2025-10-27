@@ -11,12 +11,6 @@ sock = Sock(app)
 avatars = ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "🟤", "⚫"]
 
 # --- Dummy data (moved from React) ---
-users = [
-    {"id": 1, "name": "Alice", "avatar": "🟢"},
-    {"id": 2, "name": "Bob", "avatar": "🔵"},
-    {"id": 3, "name": "Charlie", "avatar": "🟣"},
-]
-
 conversations = {
     1: [
         {"id": 1, "text": "Hey, how are you?", "sender": "other"},
@@ -40,7 +34,7 @@ peer.start()
 def get_users():
     print(peer.known_peers)
     # use these peers with random avatars
-    users = []
+    users = {}
     for i, (id, data) in enumerate(peer.known_peers.items()):
         users[id] = {
             "id": id,
