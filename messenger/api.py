@@ -30,7 +30,7 @@ conversations = {
     ],
 }
 
-username = ""
+username = "Anonymous"
 peer = Me(username)
 peer.start()
 
@@ -89,16 +89,17 @@ def chat(ws):
     finally:
         print("WebSocket connection ended")
 
-@app.route("/users/login/<string:user_name>", methods=["POST"])
-def login(user_name):
+@app.route("/users/login/<string:new_username>", methods=["POST"])
+def login(new_username):
     '''
     Set the global username for the session.
     '''
-    data = request.get_json()
     global username
-    username = user_name
+    username = new_username
+    peer.name = new_username
+
     new_msg = {
-        "userName": data["userName"],
+        "userName": new_username
     }
     return jsonify(new_msg), 201
 
