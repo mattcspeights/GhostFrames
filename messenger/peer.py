@@ -101,12 +101,12 @@ class Me:
                         msg_type, msg_id, seq, data = parsed
                         sender_mac = dot11.addr2
                         
-                        if debug_mode:
+                        if self.debug_mode:
                             print(f"[+] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")
                         
                         # Skip our own frames
                         if sender_mac == SRC_MAC:
-                            if debug_mode:
+                            if self.debug_mode:
                                 print(f"[*] Ignoring own frame")
                             return
                         
@@ -125,7 +125,7 @@ class Me:
                                     # Send handshake acknowledgment
                                     ack_data = f"0|{self.name}"  # port not used, just name
                                     send_frame(MsgType.HANDSHAKE_ACK, get_next_msg_id(), 0, 
-                                             ack_data, IFACE, sender_mac, SRC_MAC, debug_mode)
+                                             ack_data, IFACE, sender_mac, SRC_MAC, self.debug_mode)
 
                         elif msg_type == MsgType.HANDSHAKE_ACK:
                             # Parse handshake ack: "port|name" format
@@ -180,7 +180,7 @@ class Me:
                                 # Send acknowledgment
                                 ack_data = f"{msg_id}|{seq}"
                                 send_frame(MsgType.MSG_ACK, get_next_msg_id(), 0, 
-                                         ack_data, IFACE, sender_mac, SRC_MAC, debug_mode)
+                                         ack_data, IFACE, sender_mac, SRC_MAC, self.debug_mode)
                                 
                                 sender_name = self.known_peers.get(sender_id, {'name': 'Unknown'})['name']
                                 print(f'{sender_name} -> {self.name}: {data}')
@@ -189,7 +189,7 @@ class Me:
                                 for callback in self.message_listeners:
                                     callback(sender_id, data)
                     else:
-                        if debug_mode:
+                        if self.debug_mode:
                             print(f"[!] Received unparseable frame payload: {payload!r}")
 
         sniff(iface=IFACE, prn=handler, store=0)
@@ -202,7 +202,7 @@ class Me:
             # Send handshake request as announcement: "port|name" format
             announce_data = f"0|{self.name}"  # port not used, just name
             send_frame(MsgType.HANDSHAKE_REQ, get_next_msg_id(), 0, 
-                     announce_data, IFACE, BROADCAST_MAC, SRC_MAC, debug_mode)
+                     announce_data, IFACE, BROADCAST_MAC, SRC_MAC, self.debug_mode)
             time.sleep(2)
 
     def send_message(self, id, text):
@@ -221,7 +221,7 @@ class Me:
 
         # Send message frame
         send_frame(MsgType.MSG, get_next_msg_id(), peer['seq'], 
-                 text, IFACE, peer['mac'], SRC_MAC, debug_mode)
+                 text, IFACE, peer['mac'], SRC_MAC, self.debug_mode)
         
         self.update_peer(id, {
             'seq': peer['seq'] + 1,
