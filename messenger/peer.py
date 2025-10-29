@@ -51,9 +51,15 @@ class Me:
         Updates the known peers list with information about a peer, creating a
         new peer object if necessary.
         '''
-        if id not in self.known_peers:
+        is_new_peer = id not in self.known_peers
+        if is_new_peer:
             self.known_peers[id] = {}
+        
         self.known_peers[id].update(info)
+        
+        # Print message when a new peer is added
+        if is_new_peer and 'name' in info:
+            print(f'{info["name"]} has joined the network')
 
     def should_stop_timeout_ack(self):
         '''
