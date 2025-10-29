@@ -10,7 +10,7 @@ from enums import MsgType
 from payload_utils import parse_payload, get_mac
 from scapy.all import sniff, Dot11, Raw
 
-CHUNK_SIZE = 1400 # typically 1500 bytes MTU data, leave some room in case
+CHUNK_SIZE = 1000 # typically 1500 bytes MTU data, leave some room in case
 
 IFACE = "wlan1mon"
 SRC_MAC = get_mac(IFACE)
