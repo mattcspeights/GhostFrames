@@ -92,17 +92,27 @@ class Me:
                 ack = peer['expected_ack']
                 if time.time() > ack['latest_by']:
                     if ack['attempt'] >= 5:
-                        # Check if peer ID is still in known peers before removing
+                        # Check if peer ID is still in known peers
                         if id in self.known_peers:
-                            print('No ACK received after 5 attempts, removing peer')
-                            del self.known_peers[id]
+                            if ack.get('type') == 'file':
+                                print(f'File transfer failed: No ACK received after 5 attempts from {id}')
+                                # Don't remove peer for file transfer failures, just clear the expected ACK
+                                del self.known_peers[id]['expected_ack']
+                            else:
+                                print('No ACK received after 5 attempts, removing peer')
+                                del self.known_peers[id]
+                            
                             if self.should_stop_timeout_ack():
                                 waiting_for_ack.clear()
                         break
 
-                    # update ack info
                     ack['attempt'] += 1
-                    ack['latest_by'] = time.time() + (0.05 * (2 ** ack['attempt']))
+                    if ack.get('type') == 'file':
+                        # Longer timeout for file transfers (starts at 500ms, doubles each retry)
+                        ack['latest_by'] = time.time() + (0.5 * (2 ** ack['attempt']))
+                    else:
+                        # Regular message timeout (starts at 50ms, doubles each retry)
+                        ack['latest_by'] = time.time() + (0.05 * (2 ** ack['attempt']))
 
     def frame_listener(self):
         '''
@@ -358,9 +368,18 @@ class Me:
                                         peer_id = pid
                                         break
                                 
-                                if peer_id:
-                                    peer_name = self.known_peers[peer_id]['name']
-                                    print(f'File transfer ACK from {peer_name}: received {len(received_seqs)} chunks for msg_id {ack_msg_id}')
+                                if peer_id and peer_id in self.known_peers:
+                                    peer = self.known_peers[peer_id]
+                                    peer_name = peer['name']
+                                    
+                                    # Clear expected ACK if this matches
+                                    if 'expected_ack' in peer and peer['expected_ack']['msg_id'] == ack_msg_id:
+                                        del peer['expected_ack']
+                                        if self.should_stop_timeout_ack():
+                                            waiting_for_ack.clear()
+                                        print(f'File transfer completed! ACK received from {peer_name}: {len(received_seqs)} chunks for msg_id {ack_msg_id}')
+                                    else:
+                                        print(f'File transfer ACK from {peer_name}: received {len(received_seqs)} chunks for msg_id {ack_msg_id} (maybe sent late?)')
                     else:
                         if DEBUG_MODE:
                             print(f"[!] Received unparseable frame payload: {payload!r}")
@@ -458,6 +477,17 @@ class Me:
 
         # Send FILE_END
         send_frame(MsgType.FILE_END, msg_id, seq, "", IFACE, peer['mac'], SRC_MAC, DEBUG_MODE)
+        
+        # Set up expected FILE_ACK with timeout and retry logic
+        self.update_peer(peer_id, {
+            'expected_ack': {
+                'msg_id': msg_id,
+                'attempt': 0,
+                'latest_by': time.time() + 0.5,  # 500ms for file transfer ACK (longer than regular messages)
+                'type': 'file'  # Mark this as a file transfer ACK
+            },
+        })
+        waiting_for_ack.set()
         
         print(f'File {filename} sent in {seq-1} chunks')
 
