@@ -213,6 +213,15 @@ class Me:
                                 del self.known_peers[sender_id]
                                 print(f'{sender_name} has left the network')
 
+                        elif msg_type == MsgType.HEARTBEAT:
+                            # Update last_seen for known peers on heartbeat
+                            for pid, pinfo in self.known_peers.items():
+                                if pinfo.get('mac') == sender_mac:
+                                    pinfo['last_seen'] = time.time()
+                                    if DEBUG_MODE:
+                                        print(f"[*] Heartbeat from {pinfo['name']}")
+                                    break
+
                         elif msg_type == MsgType.MSG:
                             # Check for duplicate messages
                             message_key = (sender_mac, msg_id, seq)
@@ -360,14 +369,18 @@ class Me:
 
     def announcer(self):
         '''
-        Periodically announces presence to other peers over the local network.
+        Sends initial handshake request and then periodic heartbeats to announce presence.
         '''
+        # Send initial handshake request on startup
+        announce_data = f"0|{self.name}"  # port not used, just name
+        send_frame(MsgType.HANDSHAKE_REQ, self.get_next_msg_id(), 0, 
+                 announce_data, IFACE, BROADCAST_MAC, SRC_MAC, DEBUG_MODE)
+        
+        # Then send heartbeats every 5 seconds
         while True:
-            # Send handshake request as announcement: "port|name" format
-            announce_data = f"0|{self.name}"  # port not used, just name
-            send_frame(MsgType.HANDSHAKE_REQ, self.get_next_msg_id(), 0, 
-                     announce_data, IFACE, BROADCAST_MAC, SRC_MAC, DEBUG_MODE)
-            time.sleep(2)
+            time.sleep(5)
+            send_frame(MsgType.HEARTBEAT, self.get_next_msg_id(), 0, 
+                     "", IFACE, BROADCAST_MAC, SRC_MAC, DEBUG_MODE)
 
     def send_message(self, id, text):
         '''

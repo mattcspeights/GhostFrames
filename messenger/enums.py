@@ -17,5 +17,5 @@ class MsgType(IntEnum):
     FILE_ACK      = 9  # msg_id|[seqs]
 
     # Control signals
-    HEARTBEAT     = 10 # none (TODO)
+    HEARTBEAT     = 10 # none
     TERMINATE     = 11 # none
