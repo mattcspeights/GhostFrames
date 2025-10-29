@@ -154,15 +154,25 @@ class Me:
                             if len(parts) >= 2:
                                 peer_id = parts[1]  # Use name as ID for now
                                 if peer_id != ID:  # Don't add ourselves
+                                    # Check if this is a new peer
+                                    is_new_peer = peer_id not in self.known_peers
+                                    
                                     self.update_peer(peer_id, {
                                         'name': peer_id,
                                         'mac': sender_mac,  # Source MAC
                                         'last_seen': time.time(),
                                     })
+                                    
                                     # Send handshake acknowledgment
                                     ack_data = f"0|{self.name}"  # port not used, just name
                                     send_frame(MsgType.HANDSHAKE_ACK, self.get_next_msg_id(), 0, 
                                              ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
+                                    
+                                    # If this is a new peer, also send a handshake request back for mutual discovery
+                                    if is_new_peer:
+                                        req_data = f"0|{self.name}"  # port not used, just name
+                                        send_frame(MsgType.HANDSHAKE_REQ, self.get_next_msg_id(), 0, 
+                                                 req_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
 
                         elif msg_type == MsgType.HANDSHAKE_ACK:
                             # Check for duplicate handshake acks
