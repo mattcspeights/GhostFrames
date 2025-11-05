@@ -16,23 +16,24 @@ IFACE = "wlan1mon"
 SRC_MAC = get_mac(IFACE)
 BROADCAST_MAC = "ff:ff:ff:ff:ff:ff" # initialize to default for discovery
 
-NAME = input('What\'s your name? ')
-DEBUG_MODE = input('Enable debug mode to show all frames sent and received (y/n):').startswith('y')
-ID = f'{NAME}' # TODO: make unique
-
 waiting_for_ack = threading.Event()
 
 class Me:
     '''
     Handles a connection to the local network.
     '''
-    def __init__(self, name: str):
+    def __init__(self, name: str, debug_mode: bool = False):
+        self.id = name
         self.name = name
+        self.debug_mode = debug_mode
+
         self.msg_id_counter = 1
 
         self.known_peers = {}
         self.received_messages = {}  # Track (sender_mac, msg_id, seq) to prevent duplicates
         self.file_transfers = {}  # Track ongoing file transfers: {(sender_mac, msg_id): {filename, size, chunks, received_seqs}}
+
+        self.message_listeners = []
 
         self.timeout_ack_thread = threading.Thread(target=self.timeout_ack, daemon=True)
         self.frame_listener_thread = threading.Thread(target=self.frame_listener, daemon=True)
@@ -114,6 +115,19 @@ class Me:
                         # Regular message timeout (starts at 50ms, doubles each retry)
                         ack['latest_by'] = time.time() + (0.05 * (2 ** ack['attempt']))
 
+    def register_message_listener(self, callback):
+        '''
+        Registers a callback to be called when a message from a peer is
+        received.
+        '''
+        self.message_listeners.append(callback)
+
+    def remove_message_listener(self, callback):
+        '''
+        Removes a previously registered message listener.
+        '''
+        self.message_listeners.remove(callback)
+
     def frame_listener(self):
         '''
         Listens for all frame types and handles them appropriately.
@@ -129,12 +143,12 @@ class Me:
                         msg_type, msg_id, seq, data = parsed
                         sender_mac = dot11.addr2
                         
-                        if DEBUG_MODE:
+                        if self.debug_mode:
                             print(f"[+] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")
                         
                         # Skip our own frames
                         if sender_mac == SRC_MAC:
-                            if DEBUG_MODE:
+                            if self.debug_mode:
                                 print(f"[*] Ignoring own frame")
                             return
                         
@@ -142,7 +156,7 @@ class Me:
                             # Check for duplicate handshake requests
                             message_key = (sender_mac, msg_id, seq)
                             if message_key in self.received_messages:
-                                if DEBUG_MODE:
+                                if self.debug_mode:
                                     print(f"[*] Ignoring duplicate handshake request: ID={msg_id}, Seq={seq} from {sender_mac}")
                                 return
                             
@@ -153,10 +167,9 @@ class Me:
                             parts = data.split('|')
                             if len(parts) >= 2:
                                 peer_id = parts[1]  # Use name as ID for now
-                                if peer_id != ID:  # Don't add ourselves
+                                if peer_id != id:  # Don't add ourselves
                                     # Check if this is a new peer
                                     is_new_peer = peer_id not in self.known_peers
-                                    
                                     self.update_peer(peer_id, {
                                         'name': peer_id,
                                         'mac': sender_mac,  # Source MAC
@@ -166,19 +179,19 @@ class Me:
                                     # Send handshake acknowledgment
                                     ack_data = f"0|{self.name}"  # port not used, just name
                                     send_frame(MsgType.HANDSHAKE_ACK, self.get_next_msg_id(), 0, 
-                                             ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
-                                    
+                                             ack_data, IFACE, sender_mac, SRC_MAC, self.debug_mode)
+
                                     # If this is a new peer, also send a handshake request back for mutual discovery
                                     if is_new_peer:
                                         req_data = f"0|{self.name}"  # port not used, just name
                                         send_frame(MsgType.HANDSHAKE_REQ, self.get_next_msg_id(), 0, 
-                                                 req_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
+                                                 req_data, IFACE, sender_mac, SRC_MAC, self.debug_mode)
 
                         elif msg_type == MsgType.HANDSHAKE_ACK:
                             # Check for duplicate handshake acks
                             message_key = (sender_mac, msg_id, seq)
                             if message_key in self.received_messages:
-                                if DEBUG_MODE:
+                                if self.debug_mode:
                                     print(f"[*] Ignoring duplicate handshake ack: ID={msg_id}, Seq={seq} from {sender_mac}")
                                 return
                             
@@ -189,7 +202,7 @@ class Me:
                             parts = data.split('|')
                             if len(parts) >= 2:
                                 peer_id = parts[1]
-                                if peer_id != ID:
+                                if peer_id != id:
                                     self.update_peer(peer_id, {
                                         'name': peer_id,
                                         'mac': sender_mac,
@@ -238,7 +251,7 @@ class Me:
                             for pid, pinfo in self.known_peers.items():
                                 if pinfo.get('mac') == sender_mac:
                                     pinfo['last_seen'] = time.time()
-                                    if DEBUG_MODE:
+                                    if self.debug_mode:
                                         print(f"[*] Heartbeat from {pinfo['name']}")
                                     break
 
@@ -246,7 +259,7 @@ class Me:
                             # Check for duplicate messages
                             message_key = (sender_mac, msg_id, seq)
                             if message_key in self.received_messages:
-                                if DEBUG_MODE:
+                                if self.debug_mode:
                                     print(f"[*] Ignoring duplicate message: ID={msg_id}, Seq={seq} from {sender_mac}")
                                 return
                             
@@ -268,10 +281,14 @@ class Me:
                                 # Send acknowledgment
                                 ack_data = f"{msg_id}|{seq}"
                                 send_frame(MsgType.MSG_ACK, self.get_next_msg_id(), 0, 
-                                         ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
+                                         ack_data, IFACE, sender_mac, SRC_MAC, self.debug_mode)
                                 
                                 sender_name = self.known_peers.get(sender_id, {'name': 'Unknown'})['name']
                                 print(f'{sender_name} -> {self.name}: {data}')
+
+                                # Notify listeners
+                                for callback in self.message_listeners:
+                                    callback(sender_id, data)
                             
                             # Periodically clean up old message records
                             if len(self.received_messages) > 100:  # Clean up when we have many entries
@@ -281,7 +298,7 @@ class Me:
                             # Check for duplicate file init
                             message_key = (sender_mac, msg_id, seq)
                             if message_key in self.received_messages:
-                                if DEBUG_MODE:
+                                if self.debug_mode:
                                     print(f"[*] Ignoring duplicate file init: ID={msg_id}, Seq={seq} from {sender_mac}")
                                 return
                             
@@ -316,7 +333,7 @@ class Me:
                             # Check for duplicate file chunk
                             message_key = (sender_mac, msg_id, seq)
                             if message_key in self.received_messages:
-                                if DEBUG_MODE:
+                                if self.debug_mode:
                                     print(f"[*] Ignoring duplicate file chunk: ID={msg_id}, Seq={seq} from {sender_mac}")
                                 return
                             
@@ -333,7 +350,7 @@ class Me:
                                     transfer['chunks'][seq] = chunk_data
                                     transfer['received_seqs'].add(seq)
                                     
-                                    if DEBUG_MODE:
+                                    if self.debug_mode:
                                         print(f"[*] Received file chunk {seq} ({len(chunk_data)} bytes)")
                                 except Exception as e:
                                     print(f"Error decoding file chunk: {e}")
@@ -342,7 +359,7 @@ class Me:
                             # Check for duplicate file end
                             message_key = (sender_mac, msg_id, seq)
                             if message_key in self.received_messages:
-                                if DEBUG_MODE:
+                                if self.debug_mode:
                                     print(f"[*] Ignoring duplicate file end: ID={msg_id}, Seq={seq} from {sender_mac}")
                                 return
                             
@@ -359,7 +376,7 @@ class Me:
                                 received_seqs_str = ','.join(map(str, sorted(transfer['received_seqs'])))
                                 ack_data = f"{msg_id}|{received_seqs_str}"
                                 send_frame(MsgType.FILE_ACK, self.get_next_msg_id(), 0, 
-                                         ack_data, IFACE, sender_mac, SRC_MAC, DEBUG_MODE)
+                                         ack_data, IFACE, sender_mac, SRC_MAC, self.debug_mode)
                                 
                                 # Reassemble and save file
                                 self.reassemble_file(transfer_key)
@@ -391,7 +408,7 @@ class Me:
                                     else:
                                         print(f'File transfer ACK from {peer_name}: received {len(received_seqs)} chunks for msg_id {ack_msg_id} (maybe sent late?)')
                     else:
-                        if DEBUG_MODE:
+                        if self.debug_mode:
                             print(f"[!] Received unparseable frame payload: {payload!r}")
 
         sniff(iface=IFACE, prn=handler, store=0)
@@ -403,13 +420,13 @@ class Me:
         # Send initial handshake request on startup
         announce_data = f"0|{self.name}"  # port not used, just name
         send_frame(MsgType.HANDSHAKE_REQ, self.get_next_msg_id(), 0, 
-                 announce_data, IFACE, BROADCAST_MAC, SRC_MAC, DEBUG_MODE)
+                 announce_data, IFACE, BROADCAST_MAC, SRC_MAC, self.debug_mode)
         
         # Then send heartbeats every 5 seconds
         while True:
             time.sleep(5)
             send_frame(MsgType.HEARTBEAT, self.get_next_msg_id(), 0, 
-                     "", IFACE, BROADCAST_MAC, SRC_MAC, DEBUG_MODE)
+                     "", IFACE, BROADCAST_MAC, SRC_MAC, self.debug_mode)
 
     def send_message(self, id, text):
         '''
@@ -428,7 +445,7 @@ class Me:
         # Send message frame with seq=1 (messages are not chunked)
         msg_id = self.get_next_msg_id()
         send_frame(MsgType.MSG, msg_id, 1, 
-                 text, IFACE, peer['mac'], SRC_MAC, DEBUG_MODE)
+                 text, IFACE, peer['mac'], SRC_MAC, self.debug_mode)
         
         self.update_peer(id, {
             'expected_ack': {
@@ -474,7 +491,7 @@ class Me:
 
         # Send FILE_INIT
         init_data = f"{filename}|{file_size}"
-        send_frame(MsgType.FILE_INIT, msg_id, 1, init_data, IFACE, peer['mac'], SRC_MAC, DEBUG_MODE)
+        send_frame(MsgType.FILE_INIT, msg_id, 1, init_data, IFACE, peer['mac'], SRC_MAC, self.debug_mode)
 
         # Send FILE_CHUNK frames
         seq = 2  # Start from seq 2 (seq 1 was FILE_INIT)
@@ -482,11 +499,11 @@ class Me:
             chunk = file_data[i:i + CHUNK_SIZE]
             # Encode chunk as base64 to handle binary data safely
             chunk_b64 = base64.b64encode(chunk).decode('ascii')
-            send_frame(MsgType.FILE_CHUNK, msg_id, seq, chunk_b64, IFACE, peer['mac'], SRC_MAC, DEBUG_MODE)
+            send_frame(MsgType.FILE_CHUNK, msg_id, seq, chunk_b64, IFACE, peer['mac'], SRC_MAC, self.debug_mode)
             seq += 1
 
         # Send FILE_END
-        send_frame(MsgType.FILE_END, msg_id, seq, "", IFACE, peer['mac'], SRC_MAC, DEBUG_MODE)
+        send_frame(MsgType.FILE_END, msg_id, seq, "", IFACE, peer['mac'], SRC_MAC, self.debug_mode)
         
         # Set up expected FILE_ACK with timeout and retry logic
         self.update_peer(peer_id, {
@@ -559,17 +576,22 @@ class Me:
         for id, peer in self.known_peers.items():
             if 'mac' in peer:
                 send_frame(MsgType.TERMINATE, self.get_next_msg_id(), 1, 
-                         "", IFACE, peer['mac'], SRC_MAC, DEBUG_MODE)
+                         "", IFACE, peer['mac'], SRC_MAC, self.debug_mode)
         print('Terminate frames sent to all peers')
 
     def start(self):
         '''
-        Starts the connection threads and enters the command loop.
+        Starts the connection threads.
         '''
         self.timeout_ack_thread.start()
         self.frame_listener_thread.start()
         self.announcer_thread.start()
 
+    def cmd(self):
+        '''
+        Enters cmd mode where you can interact with the messenger from the
+        command line.
+        '''
         print('''Commands:
 ls                    = list known peers
 msg <id> <message>    = send message to peer
@@ -596,5 +618,10 @@ q                     = send terminate frame and quit''')
                 print('Unknown command')
 
 if __name__ == '__main__':
-    me = Me(NAME)
+    name = input('What\'s your name? ')
+    debug_mode = input('Enable debug mode to show all frames sent and received (y/n):').startswith('y')
+    id = f'{name}' # TODO: make unique
+
+    me = Me(name, debug_mode)
     me.start()
+    me.cmd()

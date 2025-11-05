@@ -91,25 +91,28 @@ export default function ChatWindow({
         <div className="w-1/4 bg-white border-r shadow-md">
           <div className="p-4 font-bold text-lg border-b">Chats</div>
           <ul>
-            {users.map((user) => (
-              <li
-                key={user.id}
-                onClick={() => setSelectedUser(user.id)}
-                className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-100 ${
-                  selectedUser === user.id ? "bg-gray-200 font-semibold" : ""
-                }`}
-              >
-                <span className="text-xl">{user.avatar}</span>
-                <span>{user.name}</span>
-              </li>
-            ))}
+            {Object.keys(users).map((userId) => {
+              const user = users[userId];
+              return (
+                <li
+                  key={user.id}
+                  onClick={() => setSelectedUser(user.id)}
+                  className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-100 ${
+                    selectedUser === user.id ? "bg-gray-200 font-semibold" : ""
+                  }`}
+                >
+                  <span className="text-xl">{user.avatar}</span>
+                  <span>{user.name}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
         {/* Chat Window */}
         <div className="flex flex-col flex-1">
           <div className="bg-lockheed-blue text-white p-4 font-semibold">
-            {users.find((u) => u.id === selectedUser)?.name}
+            {selectedUser ? users[selectedUser]?.name : "Select a chat"}
           </div>
 
           {/* Messages */}
