@@ -1,36 +1,58 @@
 import React, { useState, useEffect } from "react";
 import { HashRouter, Routes, Route, useNavigate } from "react-router-dom";
-import { getUsers, getMessages, sendMessage, login } from "./api";
+import { getUsers, getMessages, sendMessage, login, ws } from "./api";
 import ChatWindow from "./ChatWindow";
 import LoginPage from "./LoginPage";
 
 function ChatRoute({ userName, onLogout }) {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState({});
   const [selectedUser, setSelectedUser] = useState(null);
   const [conversations, setConversations] = useState({});
   const navigate = useNavigate();
+
+  /**
+   * Updates the UI when a new message is received via WebSocket, adding it
+   * to the appropriate conversation.
+   */
+  function onMessage(message) {
+    const { from, text } = message;
+    setConversations((prev) => ({
+      ...prev,
+      [from]: [...(prev[from] || []), { id: from, text, sender: "them" }],
+    }));
+  }
 
   // Redirect if not logged in
   useEffect(() => {
     if (!userName) navigate("/");
   }, [userName, navigate]);
 
-  // Load users on mount
+  // Initialize WebSocket and fetch users on component mount
   useEffect(() => {
-    getUsers().then((data) => {
+    async function init() {
+      const websocket = await ws();
+      websocket.onMessage(onMessage);
+
+      const data = await getUsers();
       setUsers(data);
-      if (data.length > 0) setSelectedUser(data[0].id);
-    });
+
+      const ids = Object.keys(data);
+      if (ids.length > 0) setSelectedUser(ids[0]);
+    }
+    init();
   }, []);
 
   // Load messages when selected user changes
   useEffect(() => {
-    if (selectedUser) {
-      getMessages(selectedUser).then((msgs) => {
-        setConversations((prev) => ({ ...prev, [selectedUser]: msgs }));
-      });
+    async function init() {
+      const websocket = await ws();
+      websocket.onMessage(onMessage);
+
+      const data = await getUsers();
+      setUsers(data);
     }
-  }, [selectedUser]);
+    init();
+  }, []);
 
   const handleSend = async (text) => {
     if (!text.trim() || !selectedUser) return;

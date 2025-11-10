@@ -1,17 +1,17 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-from flask import send_file
+from flask_sock import Sock
+import json
 import os
+from peer import Me
 
 app = Flask(__name__)
 CORS(app)  # allow calls from React (localhost:3000 in dev)
+sock = Sock(app)
 
-users = [
-    {"id": 1, "name": "Alice", "avatar": "🟢"},
-    {"id": 2, "name": "Bob", "avatar": "🔵"},
-    {"id": 3, "name": "Charlie", "avatar": "🟣"},
-]
+avatars = ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "🟤", "⚫"]
 
+# --- Dummy data (moved from React) ---
 conversations = {
     1: [
         {"id": 1, "text": "Hey, how are you?", "sender": "other"},
@@ -33,11 +33,22 @@ conversations = {
     ],
 }
 
-username = ""
+username = "Anonymous"
+peer = Me(username)
+peer.start()
 
 # --- API Endpoints ---
 @app.route("/users", methods=["GET"])
 def get_users():
+    print(peer.known_peers)
+    # use these peers with random avatars
+    users = {}
+    for i, (id, data) in enumerate(peer.known_peers.items()):
+        users[id] = {
+            "id": id,
+            "name": data['name'],
+            "avatar": avatars[i % len(avatars)],
+        }
     return jsonify(users)
 
 @app.route("/messages/<int:user_id>", methods=["GET"])
@@ -58,11 +69,40 @@ def send_message(user_id):
     conversations.setdefault(user_id, []).append(new_msg)
     return jsonify(new_msg), 201
 
-@app.route("/users/login/<string:user_name>", methods=["POST"])
-def login(user_name):
-    data = request.get_json()
+@sock.route('/ws/chat')
+def chat(ws):
+    def handle_message(sender_id, message):
+        msg = {
+            "from": sender_id,
+            "text": message,
+        }
+        ws.send(json.dumps(msg))
+
+    peer.register_message_listener(handle_message)
+
+    try:
+        while True:
+            data = ws.receive() # Don't care about incoming data
+            if data is None:
+                break
+    except Exception as e:
+        print("WebSocket error:", e)
+    finally:
+        print("WebSocket connection ended")
+
+@app.route("/users/login/<string:new_username>", methods=["POST"])
+def login(new_username):
+    '''
+    Set the global username for the session.
+    '''
     global username
-    username = user_name
+    username = new_username
+    peer.id = new_username
+    peer.name = new_username
+
+    new_msg = {
+        "userName": new_username
+    }
     return jsonify(username), 201
 
 # --- Logout Endpoint ---
