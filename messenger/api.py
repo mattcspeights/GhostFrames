@@ -61,6 +61,7 @@ def get_messages(user_id):
 def send_message(user_id):
     data = request.get_json()
     print(data.get("id",0))
+    print(data)
     new_msg = {
         "id": int(data.get("id", 0)) or len(conversations.get(user_id, [])) + 1000,
         "text": data["text"],

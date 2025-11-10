@@ -14,7 +14,7 @@ export async function sendMessage(userId, text) {
   const res = await fetch(`${API_URL}/messages/${userId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, sender: "me" }),
+    body: text,
   });
   return res.json();
 }
