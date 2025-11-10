@@ -51,23 +51,21 @@ def get_users():
         }
     return jsonify(users)
 
-@app.route("/messages/<int:user_id>", methods=["GET"])
+@app.route("/messages/<user_id>", methods=["GET"])
 def get_messages(user_id):
     print(username)
 
     return jsonify(conversations.get(user_id, []))
 
-@app.route("/messages/<int:user_id>", methods=["POST"])
+@app.route("/messages/<user_id>", methods=["POST"])
 def send_message(user_id):
-    data = request.get_json()
-    print(data.get("id",0))
-    new_msg = {
-        "id": int(data.get("id", 0)) or len(conversations.get(user_id, [])) + 1000,
-        "text": data["text"],
-        "sender": data.get("sender", "me"),
+    message = request.get_data().decode('utf-8')
+    response = {
+        "text": message,
+        "sender": "me",
     }
-    conversations.setdefault(user_id, []).append(new_msg)
-    return jsonify(new_msg), 201
+    peer.send_message(user_id, message)
+    return jsonify(response), 201
 
 @sock.route('/ws/chat')
 def chat(ws):
