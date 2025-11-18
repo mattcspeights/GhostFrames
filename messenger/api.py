@@ -95,8 +95,7 @@ def login(new_username):
     '''
     global username
     username = new_username
-    peer.id = new_username
-    peer.name = new_username
+    peer.rename(new_username)
 
     new_msg = {
         "userName": new_username
