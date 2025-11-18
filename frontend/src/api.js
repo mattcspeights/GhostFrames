@@ -78,6 +78,6 @@ class Ws {
   }
 }
 
-export async function ws() {
+export function ws() {
   return new Ws(`${API_URL.replace('http', 'ws')}/ws/chat`);
 }
