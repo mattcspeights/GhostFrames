@@ -11,12 +11,12 @@ export async function getMessages(userId) {
 }
 
 export async function sendMessage(userId, text) {
-  const res = await fetch(`${API_URL}/messages/${userId}`, {
+  // returns 204
+  await fetch(`${API_URL}/messages/${userId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: text,
   });
-  return res.json();
 }
 
 export async function login(userName) {

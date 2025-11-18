@@ -56,10 +56,10 @@ function ChatRoute({ userName, onLogout }) {
 
   const handleSend = async (text) => {
     if (!text.trim() || !selectedUser) return;
-    const msg = await sendMessage(selectedUser, text);
+    await sendMessage(selectedUser, text);
     setConversations((prev) => ({
       ...prev,
-      [selectedUser]: [...(prev[selectedUser] || []), msg],
+      [selectedUser]: [...(prev[selectedUser] || []), { id: selectedUser, text, sender: "me" }],
     }));
   };
 

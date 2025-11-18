@@ -60,12 +60,8 @@ def get_messages(user_id):
 @app.route("/messages/<user_id>", methods=["POST"])
 def send_message(user_id):
     message = request.get_data().decode('utf-8')
-    response = {
-        "text": message,
-        "sender": "me",
-    }
     peer.send_message(user_id, message)
-    return jsonify(response), 201
+    return '', 204
 
 @sock.route('/ws/chat')
 def chat(ws):
