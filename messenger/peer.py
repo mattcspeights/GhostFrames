@@ -233,6 +233,30 @@ class Me:
                                     else:
                                         print('ACK received from', peer_id, 'for unknown msg_id', ack_msg_id, '(maybe sent late?)')
 
+                        elif msg_type == MsgType.RENAME:
+                            # Find sender by MAC address
+                            sender_id = None
+                            for pid, pinfo in self.known_peers.items():
+                                if pinfo.get('mac') == sender_mac:
+                                    sender_id = pid
+                                    break
+
+                            if sender_id and sender_id in self.known_peers:
+                                old_name = self.known_peers[sender_id]['name']
+                                self.known_peers[sender_id]['name'] = data
+                                print(f'{old_name} has renamed to {data}')
+
+                                # TODO temp: also change the peer ID to the new name
+                                self.known_peers[data] = self.known_peers.pop(sender_id)
+
+                                # Send RENAME_ACK
+                                send_frame(MsgType.RENAME_ACK, self.get_next_msg_id(), 0, 
+                                         "", IFACE, sender_mac, SRC_MAC, self.debug_mode)
+
+                        elif msg_type == MsgType.RENAME_ACK:
+                            # No action needed for RENAME_ACK currently
+                            pass
+
                         elif msg_type == MsgType.TERMINATE:
                             # Find sender by MAC address and remove from peers
                             sender_id = None
@@ -428,6 +452,16 @@ class Me:
             send_frame(MsgType.HEARTBEAT, self.get_next_msg_id(), 0, 
                      "", IFACE, BROADCAST_MAC, SRC_MAC, self.debug_mode)
 
+    def rename(self, new_name):
+        '''
+        Renames this peer to the given name, and announces the change to known
+        peers.
+        '''
+        self.id = new_name
+        self.name = new_name
+        send_frame(MsgType.RENAME, self.get_next_msg_id(), 0, 
+                 new_name, IFACE, BROADCAST_MAC, SRC_MAC, self.debug_mode)
+
     def send_message(self, id, text):
         '''
         Sends a direct message to a known peer. Prints an error if the peer
@@ -444,9 +478,7 @@ class Me:
 
         # Send message frame with seq=1 (messages are not chunked)
         msg_id = self.get_next_msg_id()
-        send_frame(MsgType.MSG, msg_id, 1, 
-                 text, IFACE, peer['mac'], SRC_MAC, self.debug_mode)
-        
+
         self.update_peer(id, {
             'expected_ack': {
                 'msg_id': msg_id,
@@ -455,6 +487,9 @@ class Me:
             },
         })
         waiting_for_ack.set()
+
+        send_frame(MsgType.MSG, msg_id, 1,
+                 text, IFACE, peer['mac'], SRC_MAC, self.debug_mode)
 
         peer_name = peer['name']
         print(f'{self.name} -> {peer_name}: {text}')
@@ -502,9 +537,6 @@ class Me:
             send_frame(MsgType.FILE_CHUNK, msg_id, seq, chunk_b64, IFACE, peer['mac'], SRC_MAC, self.debug_mode)
             seq += 1
 
-        # Send FILE_END
-        send_frame(MsgType.FILE_END, msg_id, seq, "", IFACE, peer['mac'], SRC_MAC, self.debug_mode)
-        
         # Set up expected FILE_ACK with timeout and retry logic
         self.update_peer(peer_id, {
             'expected_ack': {
@@ -515,7 +547,10 @@ class Me:
             },
         })
         waiting_for_ack.set()
-        
+
+        # Send FILE_END
+        send_frame(MsgType.FILE_END, msg_id, seq, "", IFACE, peer['mac'], SRC_MAC, self.debug_mode)
+
         print(f'File {filename} sent in {seq-1} chunks')
 
     def reassemble_file(self, transfer_key):

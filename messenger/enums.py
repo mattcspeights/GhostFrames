@@ -10,12 +10,15 @@ class MsgType(IntEnum):
     MSG_ACK       = 4  # msg_id|seq
     MSG_RETRY     = 5  # msg_id|seq
 
+    RENAME        = 6  # new_name
+    RENAME_ACK    = 7  # none
+
     # File transfer
-    FILE_INIT     = 6  # filename|size
-    FILE_CHUNK    = 7  # data
-    FILE_END      = 8  # none
-    FILE_ACK      = 9  # msg_id|[seqs]
+    FILE_INIT     = 8  # filename|size
+    FILE_CHUNK    = 9  # data
+    FILE_END      = 10 # none
+    FILE_ACK      = 11 # msg_id|[seqs]
 
     # Control signals
-    HEARTBEAT     = 10 # none
-    TERMINATE     = 11 # none
+    HEARTBEAT     = 12 # none
+    TERMINATE     = 13 # none

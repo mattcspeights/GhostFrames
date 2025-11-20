@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { HashRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { getUsers, getMessages, sendMessage, login, ws } from "./api";
 import ChatWindow from "./ChatWindow";
 import LoginPage from "./LoginPage";
 
 function ChatRoute({ userName, onLogout }) {
+  const connection = useRef(null);
   const [users, setUsers] = useState({});
   const [selectedUser, setSelectedUser] = useState(null);
   const [conversations, setConversations] = useState({});
@@ -27,12 +28,19 @@ function ChatRoute({ userName, onLogout }) {
     if (!userName) navigate("/");
   }, [userName, navigate]);
 
-  // Initialize WebSocket and fetch users on component mount
+  // Initialize WebSocket
+  useEffect(() => {
+    const websocket = ws();
+    connection.current = websocket;
+    websocket.onMessage(onMessage);
+    return () => {
+      websocket.close();
+    };
+  }, []);
+
+  // Fetch users on component mount
   useEffect(() => {
     async function init() {
-      const websocket = await ws();
-      websocket.onMessage(onMessage);
-
       const data = await getUsers();
       setUsers(data);
 
@@ -42,24 +50,12 @@ function ChatRoute({ userName, onLogout }) {
     init();
   }, []);
 
-  // Load messages when selected user changes
-  useEffect(() => {
-    async function init() {
-      const websocket = await ws();
-      websocket.onMessage(onMessage);
-
-      const data = await getUsers();
-      setUsers(data);
-    }
-    init();
-  }, []);
-
   const handleSend = async (text) => {
     if (!text.trim() || !selectedUser) return;
-    const msg = await sendMessage(selectedUser, text);
+    await sendMessage(selectedUser, text);
     setConversations((prev) => ({
       ...prev,
-      [selectedUser]: [...(prev[selectedUser] || []), msg],
+      [selectedUser]: [...(prev[selectedUser] || []), { id: selectedUser, text, sender: "me" }],
     }));
   };
 
