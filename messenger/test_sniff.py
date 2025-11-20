@@ -51,13 +51,13 @@ def main():
     
     # Sniff with a timeout to avoid hanging forever
     try:
-        sniff(iface=iface, prn=packet_handler, store=0, timeout=60, stop_filter=lambda x: packet_handler(x))
+        sniff(iface=iface, prn=packet_handler, store=0, timeout=120, stop_filter=lambda x: packet_handler(x))
     except KeyboardInterrupt:
         print("\n[*] Sniffing interrupted by user")
     
     # Wait a bit more for any late frames
-    print("\n[*] Waiting 2 more seconds for late frames...")
-    time.sleep(2)
+    print("\n[*] Waiting 5 more seconds for late frames...")
+    time.sleep(5)
     
     # Calculate statistics
     end_time = time.time()
