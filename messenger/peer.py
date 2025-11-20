@@ -8,6 +8,7 @@ from send_frame import send_frame
 from sniff_frames import sniff_frames
 from enums import MsgType
 from payload_utils import parse_payload, get_mac
+from crypto_utils import decrypt_data
 from scapy.all import sniff, Dot11, Raw
 
 CHUNK_SIZE = 1000 # typically 1500 bytes MTU data, leave some room in case
@@ -140,8 +141,16 @@ class Me:
                     payload = pkt[Raw].load
                     parsed = parse_payload(payload)
                     if parsed:
-                        msg_type, msg_id, seq, data = parsed
+                        msg_type, msg_id, seq, encrypted_data = parsed
                         sender_mac = dot11.addr2
+                        
+                        # Decrypt the data
+                        try:
+                            data = decrypt_data(encrypted_data) if encrypted_data else ""
+                        except Exception as e:
+                            if self.debug_mode:
+                                print(f"[!] Decryption failed for frame from {sender_mac}: {e}")
+                            return
                         
                         if self.debug_mode:
                             print(f"[+] Received frame: Type={msg_type.name}, ID={msg_id}, Seq={seq}, From={sender_mac}, Data='{data}'")

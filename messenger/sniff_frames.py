@@ -2,6 +2,7 @@ from datetime import datetime
 from scapy.all import sniff, Dot11, Raw
 from payload_utils import parse_payload
 from enums import MsgType
+from crypto_utils import decrypt_data
 
 def sniff_frames(iface: str, filter_substring: bytes = None, debug: bool = True, callback=None):
     def handler(pkt):
@@ -14,7 +15,16 @@ def sniff_frames(iface: str, filter_substring: bytes = None, debug: bool = True,
                 if filter_substring is None or filter_substring in payload:
                     parsed = parse_payload(payload)
                     if parsed:
-                        msg_type, msg_id, seq, data = parsed
+                        msg_type, msg_id, seq, encrypted_data = parsed
+                        
+                        # Decrypt the data
+                        try:
+                            data = decrypt_data(encrypted_data) if encrypted_data else ""
+                        except Exception as e:
+                            if debug:
+                                timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                                print(f"[{timestamp}] Decryption failed: {e}")
+                            return
                         
                         # Call the callback function if provided
                         if callback:

@@ -4,6 +4,10 @@
 
 **Ghost Frames** is a custom communication system that leverages low-level 802.11 wireless frames to transmit messages outside the standard TCP/IP stack. The project aims to create a secure way to deliver messages and files between users, ultimately through a user-facing desktop application.  
 
+## Security
+
+All frames are encrypted using **AES-256-CBC** before transmission. Each message uses a randomly generated Initialization Vector (IV) to ensure that identical messages produce different ciphertexts. The key is currently shared between all peers.
+
 ## Instructions
 
 To use this project, run messenger/peer.py.  
