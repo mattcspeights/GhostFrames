@@ -1,56 +1,57 @@
-from scapy.all import sniff, Dot11
+from scapy.all import sniff, Dot11, Raw
+from payload_utils import parse_payload
+from crypto_utils import decrypt_data
 import time
 
 def main():
     iface = "wlan1mon"
-    filter_substring = b"GF|"
     expected_frames = 1000
     
-    received_frames = set()
+    received_frames = {}  # msg_id -> (seq, decrypted_data)
     start_time = None
     last_frame_time = None
     
     print(f"[*] Starting to sniff for {expected_frames} frames on {iface}...")
-    print(f"[*] Filtering for frames containing: {filter_substring}")
     print("[*] Waiting for frames...\n")
     
     def packet_handler(pkt):
         nonlocal start_time, last_frame_time
         
-        if pkt.haslayer(Dot11):
+        if pkt.haslayer(Dot11) and pkt.haslayer(Raw):
             try:
-                raw_data = bytes(pkt)
-                if filter_substring in raw_data:
+                raw_data = bytes(pkt[Raw].load)
+                
+                # Try to parse the payload
+                parsed = parse_payload(raw_data)
+                if parsed:
+                    msg_type, msg_id, seq, encrypted_data = parsed
+                    
                     if start_time is None:
                         start_time = time.time()
                     
                     last_frame_time = time.time()
                     
-                    # Extract frame number from the data
-                    # Looking for pattern like "Frame X" in the payload
-                    idx = raw_data.find(b"Frame ")
-                    if idx != -1:
-                        # Extract the frame number
-                        frame_str = raw_data[idx:idx+20].decode('utf-8', errors='ignore')
-                        try:
-                            frame_num = int(frame_str.split()[1].split('\x00')[0])
-                            if frame_num not in received_frames:
-                                received_frames.add(frame_num)
-                                
-                                if len(received_frames) % 100 == 0:
-                                    print(f"[*] Received {len(received_frames)}/{expected_frames} frames")
-                                
-                                # Stop after receiving expected number of frames or timeout
-                                if len(received_frames) >= expected_frames:
-                                    return True  # Stop sniffing
-                        except (ValueError, IndexError):
-                            pass
+                    # Try to decrypt the data
+                    try:
+                        decrypted = decrypt_data(encrypted_data) if encrypted_data else ""
+                    except:
+                        decrypted = "[decrypt failed]"
+                    
+                    if msg_id not in received_frames:
+                        received_frames[msg_id] = (seq, decrypted)
+                        
+                        if len(received_frames) % 100 == 0:
+                            print(f"[*] Received {len(received_frames)}/{expected_frames} frames")
+                        
+                        # Stop after receiving expected number of frames
+                        if len(received_frames) >= expected_frames:
+                            return True  # Stop sniffing
             except Exception as e:
                 pass
     
     # Sniff with a timeout to avoid hanging forever
     try:
-        sniff(iface=iface, prn=packet_handler, store=0, timeout=30, stop_filter=lambda x: packet_handler(x))
+        sniff(iface=iface, prn=packet_handler, store=0, timeout=60, stop_filter=lambda x: packet_handler(x))
     except KeyboardInterrupt:
         print("\n[*] Sniffing interrupted by user")
     
@@ -77,11 +78,20 @@ def main():
     
     # Show which frames were dropped (if not too many)
     if len(received_frames) < expected_frames:
-        missing = sorted(set(range(1, expected_frames + 1)) - received_frames)
+        missing = sorted(set(range(1, expected_frames + 1)) - received_frames.keys())
         if len(missing) <= 50:
-            print(f"\nMissing frame numbers: {missing}")
+            print(f"\nMissing frame IDs: {missing}")
         else:
             print(f"\nFirst 50 missing frames: {missing[:50]}")
+            print(f"Last 50 missing frames: {missing[-50:]}")
+    
+    # Show sample of received frames
+    if received_frames:
+        print(f"\nSample received frames:")
+        sample_ids = sorted(received_frames.keys())[:5]
+        for msg_id in sample_ids:
+            seq, data = received_frames[msg_id]
+            print(f"  Frame {msg_id}: seq={seq}, data='{data}'")
     
     print("="*60)
 
