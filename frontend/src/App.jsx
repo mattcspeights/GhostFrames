@@ -14,13 +14,31 @@ function ChatRoute({ userName, onLogout }) {
   /**
    * Updates the UI when a new message is received via WebSocket, adding it
    * to the appropriate conversation.
+   * @param {{type: 'peer_joined', peer_id: string, peer_name: string} | {type: 'message', from: string, text: string}} event
    */
-  function onMessage(message) {
-    const { from, text } = message;
-    setConversations((prev) => ({
-      ...prev,
-      [from]: [...(prev[from] || []), { id: from, text, sender: "them" }],
-    }));
+  function onEvent(event) {
+    switch (event.type) {
+      case "peer_joined": {
+        const avatars = ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "🟤", "⚫"];
+        setUsers((prev) => ({
+          ...prev,
+          [event.peer_id]: { id: event.peer_id, name: event.peer_name, avatar: avatars[Math.floor(Math.random() * avatars.length)] },
+        }));
+        break;
+      }
+
+      case "message": {
+        const { from, text } = event;
+        setConversations((prev) => ({
+          ...prev,
+          [from]: [...(prev[from] || []), { id: from, text, sender: "them" }],
+        }));
+        break;
+      }
+
+      default:
+        console.warn("Unknown event type:", event.type);
+    }
   }
 
   // Redirect if not logged in
@@ -32,7 +50,7 @@ function ChatRoute({ userName, onLogout }) {
   useEffect(() => {
     const websocket = ws();
     connection.current = websocket;
-    websocket.onMessage(onMessage);
+    websocket.onEvent(onEvent);
     return () => {
       websocket.close();
     };

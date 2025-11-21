@@ -33,7 +33,7 @@ class Me:
         self.received_messages = {}  # Track (sender_mac, msg_id, seq) to prevent duplicates
         self.file_transfers = {}  # Track ongoing file transfers: {(sender_mac, msg_id): {filename, size, chunks, received_seqs}}
 
-        self.message_listeners = []
+        self.event_listeners = []
 
         self.timeout_ack_thread = threading.Thread(target=self.timeout_ack, daemon=True)
         self.frame_listener_thread = threading.Thread(target=self.frame_listener, daemon=True)
@@ -60,6 +60,12 @@ class Me:
         
         # Print message when a new peer is added
         if is_new_peer and 'name' in info:
+            for callback in self.event_listeners:
+                callback({
+                    "type": "peer_joined",
+                    "peer_id": id,
+                    "peer_name": info["name"],
+                })
             print(f'{info["name"]} has joined the network')
 
     def should_stop_timeout_ack(self):
@@ -115,18 +121,17 @@ class Me:
                         # Regular message timeout (starts at 50ms, doubles each retry)
                         ack['latest_by'] = time.time() + (0.05 * (2 ** ack['attempt']))
 
-    def register_message_listener(self, callback):
+    def register_event_listener(self, callback):
         '''
-        Registers a callback to be called when a message from a peer is
-        received.
+        Registers a callback to be called when the peer receives an event.
         '''
-        self.message_listeners.append(callback)
+        self.event_listeners.append(callback)
 
-    def remove_message_listener(self, callback):
+    def remove_event_listener(self, callback):
         '''
-        Removes a previously registered message listener.
+        Removes a previously registered event listener.
         '''
-        self.message_listeners.remove(callback)
+        self.event_listeners.remove(callback)
 
     def frame_listener(self):
         '''
@@ -311,8 +316,12 @@ class Me:
                                 print(f'{sender_name} -> {self.name}: {data}')
 
                                 # Notify listeners
-                                for callback in self.message_listeners:
-                                    callback(sender_id, data)
+                                for callback in self.event_listeners:
+                                    callback({
+                                        "type": "message",
+                                        "from": sender_id,
+                                        "text": data,
+                                    })
                             
                             # Periodically clean up old message records
                             if len(self.received_messages) > 100:  # Clean up when we have many entries

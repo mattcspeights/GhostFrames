@@ -73,7 +73,7 @@ class Ws {
     });
   }
 
-  onMessage(callback) {
+  onEvent(callback) {
     this.listeners.push(callback);
   }
 }

@@ -65,14 +65,10 @@ def send_message(user_id):
 
 @sock.route('/ws/chat')
 def chat(ws):
-    def handle_message(sender_id, message):
-        msg = {
-            "from": sender_id,
-            "text": message,
-        }
-        ws.send(json.dumps(msg))
+    def handle_event(event):
+        ws.send(json.dumps(event))
 
-    peer.register_message_listener(handle_message)
+    peer.register_event_listener(handle_event)
 
     try:
         while True:
@@ -82,6 +78,7 @@ def chat(ws):
     except Exception as e:
         print("WebSocket error:", e)
     finally:
+        peer.remove_event_listener(handle_event)
         print("WebSocket connection ended")
 
 @app.route("/users/login/<string:new_username>", methods=["POST"])
